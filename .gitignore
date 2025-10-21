@@ -141,3 +141,6 @@ vite.config.ts.timestamp-*
 
 #ignore lib
 lib
+
+# ignore secrets and env
+.secrets
