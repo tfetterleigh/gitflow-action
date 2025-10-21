@@ -138,3 +138,6 @@ out
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+#ignore lib
+lib

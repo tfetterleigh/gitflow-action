@@ -6,7 +6,7 @@ runs:
   main: 'dist/index.js'
 
 inputs:
-  test:
+  name:
     description: 'Test'
     required: true
     default: 'Test'
