@@ -6,10 +6,12 @@ runs:
   main: 'dist/index.js'
 
 inputs:
-  name:
-    description: 'Test'
+  gh-token:
+    description: 'GITHUB_TOKEN'
     required: true
-    default: 'Test'
+  label:
+    description: 'Test label to add to PR'
+    required: true
 
 branding:
   icon: 'git-pull-request'
