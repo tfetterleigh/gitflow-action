@@ -4,6 +4,10 @@ on:
   pull_request:
     types: [opened, reopened]
 
+permissions:
+  pull-requests: write
+  contents: read
+
 jobs:
   run-my-action:
     name: Checks if this action works
