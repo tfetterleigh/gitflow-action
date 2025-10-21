@@ -1,0 +1,16 @@
+name: 'WIP Gitflow'
+description: 'WIP Gitflow'
+
+runs:
+  using: 'node20'
+  main: 'dist/index.js'
+
+inputs:
+  test:
+    description: 'Test'
+    required: true
+    default: 'Test'
+
+branding:
+  icon: 'git-pull-request'
+  color: 'blue'
