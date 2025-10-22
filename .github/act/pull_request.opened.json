@@ -1,0 +1,17 @@
+{
+  "event_name": "pull_request",
+  "event_path": "./.github/act/pull_request.opened.json",
+  "pull_request": {
+    "number": 456,
+    "merged": false,
+    "base": { "ref": "main" },
+    "head": { "ref": "feature/new" },
+    "body": "Feature PR"
+  },
+  "action": "opened",
+  "repository": {
+    "full_name": "owner/repo",
+    "name": "repo",
+    "owner": { "login": "owner" }
+  }
+}
