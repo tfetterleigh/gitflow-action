@@ -1,9 +1,9 @@
 import * as github from "@actions/github";
 import { RestEndpointMethodTypes } from "@octokit/plugin-rest-endpoint-methods";
 import assert from "assert";
-import { Config, octokit } from "./shared.js";
-import { Result } from "./types.js";
-import { isReleaseCandidate, tryMerge } from "./utils.js";
+import { Config, octokit } from "./shared";
+import { Result } from "./types";
+import { isReleaseCandidate, tryMerge } from "./utils";
 
 async function executeOnRelease(): Promise<Result> {
   if (Config.isDryRun) {

@@ -1,4 +1,4 @@
-import { Config } from "./shared.js";
+import { Config } from "./shared";
 
 export const PR_EXPLAIN_MESSAGE = `Merging this pull request will trigger Gitflow release actions. A release would be created and ${
   Config.mergeBackFromProd ? `${Config.prodBranch}` : "this branch"

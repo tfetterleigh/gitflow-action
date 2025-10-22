@@ -1,6 +1,20 @@
 /******/ (() => { // webpackBootstrap
 /******/ 	var __webpack_modules__ = ({
 
+/***/ 8729:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.PR_EXPLAIN_MESSAGE = void 0;
+const shared_1 = __nccwpck_require__(3839);
+exports.PR_EXPLAIN_MESSAGE = `Merging this pull request will trigger Gitflow release actions. A release would be created and ${shared_1.Config.mergeBackFromProd ? `${shared_1.Config.prodBranch}` : "this branch"} would be merged back to ${shared_1.Config.developBranch} if needed.
+See [Gitflow Workflow](https://www.atlassian.com/git/tutorials/comparing-workflows/gitflow-workflow) for more details.`;
+
+
+/***/ }),
+
 /***/ 1188:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -43,17 +57,21 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.run = run;
 const github = __importStar(__nccwpck_require__(3228));
 const core = __importStar(__nccwpck_require__(7484));
-const shared_js_1 = __nccwpck_require__(3839);
+const shared_1 = __nccwpck_require__(3839);
+const post_release_1 = __nccwpck_require__(8811);
+const release_1 = __nccwpck_require__(9437);
 async function run() {
-    console.log("gitflow-action: running with config", shared_js_1.Config);
+    console.log("gitflow-action: running with config", shared_1.Config);
     const isPullRequest = github.context.eventName === "pull_request" || github.context.eventName === "pull_request_target";
     const prIsClosed = isPullRequest && github.context.payload.action === "closed";
     let res;
     if (prIsClosed) {
         console.log("gitflow-action: is PR event and PR is closed. Running executeOnRelease");
+        res = await (0, post_release_1.executeOnRelease)();
     }
     else if (github.context.eventName === "workflow_dispatch") {
         console.log("gitflow-action: is workflow_dispatch.  Running createReleasePR");
+        res = await (0, release_1.createReleasePR)();
     }
     else {
         console.log("gitflow-action: no conditions matched");
@@ -67,7 +85,249 @@ async function run() {
 }
 /* istanbul ignore next */
 if (!process.env.JEST_WORKER_ID) {
-    run();
+    run()
+        .then(() => {
+        process.exitCode = 0;
+    })
+        .catch((err) => {
+        core.setFailed(err.message);
+        process.exitCode = 1;
+    });
+}
+
+
+/***/ }),
+
+/***/ 8811:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.executeOnRelease = executeOnRelease;
+const github = __importStar(__nccwpck_require__(3228));
+const assert_1 = __importDefault(__nccwpck_require__(2613));
+const shared_1 = __nccwpck_require__(3839);
+const utils_1 = __nccwpck_require__(9277);
+async function executeOnRelease() {
+    if (shared_1.Config.isDryRun) {
+        console.log(`on-release: dry run. Exiting...`);
+        return {
+            type: "none",
+        };
+    }
+    const pullRequest = github.context.payload
+        .pull_request;
+    if (!pullRequest) {
+        console.log(`on-release: pull request is not defined. Exiting...`);
+        return {
+            type: "none",
+        };
+    }
+    if (!pullRequest.merged) {
+        console.log(`on-release: pull request is not merged. Exiting...`);
+        return {
+            type: "none",
+        };
+    }
+    /**
+     * Precheck
+     * Check if the pull request has a release label, targeting main branch, and if it was merged
+     */
+    const pullRequestNumber = pullRequest.number;
+    (0, assert_1.default)(pullRequestNumber, `github.context.payload.pull_request?.number is not defined`);
+    const releaseCandidateType = (0, utils_1.isReleaseCandidate)(pullRequest, true);
+    if (!releaseCandidateType)
+        return {
+            type: "none",
+        };
+    const currentBranch = pullRequest.head.ref;
+    let version = "";
+    if (releaseCandidateType === "release") {
+        /**
+         * Creating a release
+         */
+        version = currentBranch.substring(shared_1.Config.releaseBranchPrefix.length);
+    }
+    else if (releaseCandidateType === "hotfix") {
+        /**
+         * Creating a hotfix release
+         */
+        const now = pullRequest.merged_at ? new Date(pullRequest.merged_at) : new Date();
+        version = `hotfix-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}`;
+    }
+    console.log(`on-release: ${releaseCandidateType}(${version}): Generating release`);
+    const pullRequestBody = pullRequest.body;
+    (0, assert_1.default)(pullRequestBody, `pull request body is not defined`);
+    const { data: release } = await shared_1.octokit.rest.repos.createRelease({
+        ...shared_1.Config.repo,
+        tag_name: version,
+        target_commitish: shared_1.Config.prodBranch,
+        name: version,
+        body: pullRequestBody,
+    });
+    /**
+     * Merging the release or hotfix branch back to the develop branch if needed
+     */
+    console.log(`on-release: ${releaseCandidateType}(${version}): Execute merge workflow`);
+    await (0, utils_1.tryMerge)(shared_1.Config.mergeBackFromProd ? shared_1.Config.prodBranch : currentBranch, shared_1.Config.developBranch);
+    console.log(`on-release: success`);
+    console.log(`post-release: process release ${release.name}`);
+    // if (Config.slackOptionsStr) {
+    //     let slackOpts: SlackIntegrationOptions;
+    //     try {
+    //         slackOpts = JSON.parse(Config.slackOptionsStr);
+    //     } catch {
+    //         throw new Error(
+    //             `integration(slack): Could not parse ${Config.slackOptionsStr}`,
+    //         );
+    //     }
+    //     /**
+    //      * Slack integration
+    //      */
+    //     await sendToSlack(slackOpts, release);
+    // }
+    console.log(`post-release: success`);
+    return {
+        type: releaseCandidateType,
+        version,
+        release_url: release.html_url,
+    };
+}
+
+
+/***/ }),
+
+/***/ 9437:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.createReleasePR = createReleasePR;
+// @ts-check
+const inc_js_1 = __importDefault(__nccwpck_require__(2338));
+const shared_1 = __nccwpck_require__(3839);
+const utils_1 = __nccwpck_require__(9277);
+async function createReleasePR() {
+    const isDryRun = shared_1.Config.isDryRun;
+    const developBranchSha = (await shared_1.octokit.rest.repos.getBranch({
+        ...shared_1.Config.repo,
+        branch: shared_1.Config.developBranch,
+    })).data.commit.sha;
+    console.log(`create_release: Generating release notes for ${developBranchSha}`);
+    // developBranch and mainBranch are almost identical
+    // so we can use developBranch for ahead-of-time release note
+    const { data: latestRelease } = await shared_1.octokit.rest.repos.getLatestRelease(shared_1.Config.repo).catch(() => ({ data: null }));
+    const latest_release_tag_name = latestRelease?.tag_name;
+    let version;
+    if (shared_1.Config.version) {
+        version = shared_1.Config.version;
+    }
+    else if (shared_1.Config.versionIncrement) {
+        const increasedVersion = (0, inc_js_1.default)(latest_release_tag_name || "0.0.0", shared_1.Config.versionIncrement, { loose: true });
+        if (!increasedVersion) {
+            throw new Error(`create_release: Could not increment version ${latest_release_tag_name} with ${shared_1.Config.versionIncrement}`);
+        }
+        version = increasedVersion;
+    }
+    else {
+        version = developBranchSha;
+    }
+    const { data: releaseNotes } = await shared_1.octokit.rest.repos.generateReleaseNotes({
+        ...shared_1.Config.repo,
+        tag_name: version,
+        target_commitish: shared_1.Config.developBranch,
+        previous_tag_name: latest_release_tag_name,
+    });
+    const releasePrBody = `${releaseNotes.body}
+    
+## Release summary
+
+${shared_1.Config.releaseSummary}
+  `;
+    const releaseBranch = `${shared_1.Config.releaseBranchPrefix}${version}`;
+    let pull_number;
+    if (!isDryRun) {
+        console.log(`create_release: Creating release branch`);
+        // create release branch from latest sha of develop branch
+        await shared_1.octokit.rest.git.createRef({
+            ...shared_1.Config.repo,
+            ref: `refs/heads/${releaseBranch}`,
+            sha: developBranchSha,
+        });
+        console.log(`create_release: Creating Pull Request`);
+        const { data: pullRequest } = await shared_1.octokit.rest.pulls.create({
+            ...shared_1.Config.repo,
+            title: `Release ${releaseNotes.name || version}`,
+            body: releasePrBody,
+            head: releaseBranch,
+            base: shared_1.Config.prodBranch,
+            maintainer_can_modify: false,
+        });
+        pull_number = pullRequest.number;
+        await shared_1.octokit.rest.issues.addLabels({
+            ...shared_1.Config.repo,
+            issue_number: pullRequest.number,
+            labels: ["release"],
+        });
+        await (0, utils_1.createExplainComment)(pullRequest.number);
+        console.log(`create_release: Pull request has been created at ${pullRequest.html_url}`);
+    }
+    else {
+        console.log(`create_release: Dry run: would have created release branch ${releaseBranch} and PR with body:\n${releasePrBody}`);
+    }
+    // Parse the PR body for PR numbers
+    let mergedPrNumbers = (releaseNotes.body.match(/pull\/\d+/g) || []).map((prNumber) => Number(prNumber.replace("pull/", "")));
+    // remove duplicates due to the "New contributors" section
+    mergedPrNumbers = Array.from(new Set(mergedPrNumbers)).sort();
+    return {
+        type: "release",
+        pull_number: pull_number,
+        pull_numbers_in_release: mergedPrNumbers.join(","),
+        version,
+        release_branch: releaseBranch,
+        latest_release_tag_name,
+    };
 }
 
 
@@ -135,6 +395,103 @@ exports.Config = {
     hotfixBranchPrefix: "hotfix/",
     slackOptionsStr: core.getInput("slack") || process.env.SLACK_OPTIONS,
 };
+
+
+/***/ }),
+
+/***/ 9277:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.removeHtmlComments = void 0;
+exports.tryMerge = tryMerge;
+exports.isReleaseCandidate = isReleaseCandidate;
+exports.createExplainComment = createExplainComment;
+const constants_1 = __nccwpck_require__(8729);
+const shared_1 = __nccwpck_require__(3839);
+async function tryMerge(headBranch, baseBranch) {
+    console.log(`Trying to merge ${headBranch} branch into ${baseBranch} branch.`);
+    let compareCommitsResult;
+    try {
+        const { data } = await shared_1.octokit.rest.repos.compareCommits({
+            ...shared_1.Config.repo,
+            base: baseBranch,
+            head: headBranch,
+        });
+        compareCommitsResult = data;
+    }
+    catch (error) {
+        console.error(`Error comparing commits: ${error}. Skipping merge.`);
+        return;
+    }
+    if (compareCommitsResult.status !== "identical") {
+        console.log(`${headBranch} branch is not up to date with ${baseBranch} branch. Attempting to merge.`);
+        try {
+            await shared_1.octokit.rest.repos.merge({
+                ...shared_1.Config.repo,
+                base: baseBranch,
+                head: headBranch,
+            });
+        }
+        catch {
+            // could not automatically merge
+            // try creating a PR
+            await shared_1.octokit.rest.pulls
+                .create({
+                ...shared_1.Config.repo,
+                base: baseBranch,
+                head: headBranch,
+                title: `Merge ${headBranch} branch into ${baseBranch}`,
+                body: `In Gitflow, \`release\` and \`hotfix\` branches get merged back into \`develop\` branch.
+See [Gitflow Workflow](https://www.atlassian.com/git/tutorials/comparing-workflows/gitflow-workflow) for more details.`,
+            })
+                .catch(() => {
+                /** noop */
+            });
+        }
+    }
+    else {
+        console.log(`${headBranch} branch is already up to date with ${baseBranch} branch.`);
+    }
+}
+function isReleaseCandidate(pullRequest, shouldLog = false) {
+    if (pullRequest.base.ref !== shared_1.Config.prodBranch) {
+        if (shouldLog) {
+            console.log(`on-release: ${pullRequest.number} does not merge to main_branch. Exiting...`);
+        }
+        return false;
+    }
+    if (pullRequest.head.ref.startsWith(shared_1.Config.releaseBranchPrefix)) {
+        return "release";
+    }
+    if (pullRequest.head.ref.startsWith(shared_1.Config.hotfixBranchPrefix)) {
+        return "hotfix";
+    }
+    if (shouldLog) {
+        console.log(`on-release: pull request does not match either release or hotfix branch pattern. Exiting...`);
+    }
+    return false;
+}
+async function createExplainComment(pullRequestNumber) {
+    const existingComments = await shared_1.octokit.rest.issues.listComments({
+        ...shared_1.Config.repo,
+        issue_number: pullRequestNumber,
+    });
+    const existingExplainComment = existingComments.data.find((comment) => comment.body === constants_1.PR_EXPLAIN_MESSAGE);
+    if (existingExplainComment) {
+        console.log(`on-release: pull request ${pullRequestNumber} already has an explain comment.`);
+        return;
+    }
+    await shared_1.octokit.rest.issues.createComment({
+        ...shared_1.Config.repo,
+        issue_number: pullRequestNumber,
+        body: constants_1.PR_EXPLAIN_MESSAGE,
+    });
+}
+const removeHtmlComments = (text) => text.replace(/<!--.*?-->/gs, "");
+exports.removeHtmlComments = removeHtmlComments;
 
 
 /***/ }),
@@ -7542,6 +7899,733 @@ function onceStrict (fn) {
   f.called = false
   return f
 }
+
+
+/***/ }),
+
+/***/ 7163:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+const debug = __nccwpck_require__(1159)
+const { MAX_LENGTH, MAX_SAFE_INTEGER } = __nccwpck_require__(5101)
+const { safeRe: re, t } = __nccwpck_require__(5471)
+
+const parseOptions = __nccwpck_require__(356)
+const { compareIdentifiers } = __nccwpck_require__(3348)
+class SemVer {
+  constructor (version, options) {
+    options = parseOptions(options)
+
+    if (version instanceof SemVer) {
+      if (version.loose === !!options.loose &&
+        version.includePrerelease === !!options.includePrerelease) {
+        return version
+      } else {
+        version = version.version
+      }
+    } else if (typeof version !== 'string') {
+      throw new TypeError(`Invalid version. Must be a string. Got type "${typeof version}".`)
+    }
+
+    if (version.length > MAX_LENGTH) {
+      throw new TypeError(
+        `version is longer than ${MAX_LENGTH} characters`
+      )
+    }
+
+    debug('SemVer', version, options)
+    this.options = options
+    this.loose = !!options.loose
+    // this isn't actually relevant for versions, but keep it so that we
+    // don't run into trouble passing this.options around.
+    this.includePrerelease = !!options.includePrerelease
+
+    const m = version.trim().match(options.loose ? re[t.LOOSE] : re[t.FULL])
+
+    if (!m) {
+      throw new TypeError(`Invalid Version: ${version}`)
+    }
+
+    this.raw = version
+
+    // these are actually numbers
+    this.major = +m[1]
+    this.minor = +m[2]
+    this.patch = +m[3]
+
+    if (this.major > MAX_SAFE_INTEGER || this.major < 0) {
+      throw new TypeError('Invalid major version')
+    }
+
+    if (this.minor > MAX_SAFE_INTEGER || this.minor < 0) {
+      throw new TypeError('Invalid minor version')
+    }
+
+    if (this.patch > MAX_SAFE_INTEGER || this.patch < 0) {
+      throw new TypeError('Invalid patch version')
+    }
+
+    // numberify any prerelease numeric ids
+    if (!m[4]) {
+      this.prerelease = []
+    } else {
+      this.prerelease = m[4].split('.').map((id) => {
+        if (/^[0-9]+$/.test(id)) {
+          const num = +id
+          if (num >= 0 && num < MAX_SAFE_INTEGER) {
+            return num
+          }
+        }
+        return id
+      })
+    }
+
+    this.build = m[5] ? m[5].split('.') : []
+    this.format()
+  }
+
+  format () {
+    this.version = `${this.major}.${this.minor}.${this.patch}`
+    if (this.prerelease.length) {
+      this.version += `-${this.prerelease.join('.')}`
+    }
+    return this.version
+  }
+
+  toString () {
+    return this.version
+  }
+
+  compare (other) {
+    debug('SemVer.compare', this.version, this.options, other)
+    if (!(other instanceof SemVer)) {
+      if (typeof other === 'string' && other === this.version) {
+        return 0
+      }
+      other = new SemVer(other, this.options)
+    }
+
+    if (other.version === this.version) {
+      return 0
+    }
+
+    return this.compareMain(other) || this.comparePre(other)
+  }
+
+  compareMain (other) {
+    if (!(other instanceof SemVer)) {
+      other = new SemVer(other, this.options)
+    }
+
+    if (this.major < other.major) {
+      return -1
+    }
+    if (this.major > other.major) {
+      return 1
+    }
+    if (this.minor < other.minor) {
+      return -1
+    }
+    if (this.minor > other.minor) {
+      return 1
+    }
+    if (this.patch < other.patch) {
+      return -1
+    }
+    if (this.patch > other.patch) {
+      return 1
+    }
+    return 0
+  }
+
+  comparePre (other) {
+    if (!(other instanceof SemVer)) {
+      other = new SemVer(other, this.options)
+    }
+
+    // NOT having a prerelease is > having one
+    if (this.prerelease.length && !other.prerelease.length) {
+      return -1
+    } else if (!this.prerelease.length && other.prerelease.length) {
+      return 1
+    } else if (!this.prerelease.length && !other.prerelease.length) {
+      return 0
+    }
+
+    let i = 0
+    do {
+      const a = this.prerelease[i]
+      const b = other.prerelease[i]
+      debug('prerelease compare', i, a, b)
+      if (a === undefined && b === undefined) {
+        return 0
+      } else if (b === undefined) {
+        return 1
+      } else if (a === undefined) {
+        return -1
+      } else if (a === b) {
+        continue
+      } else {
+        return compareIdentifiers(a, b)
+      }
+    } while (++i)
+  }
+
+  compareBuild (other) {
+    if (!(other instanceof SemVer)) {
+      other = new SemVer(other, this.options)
+    }
+
+    let i = 0
+    do {
+      const a = this.build[i]
+      const b = other.build[i]
+      debug('build compare', i, a, b)
+      if (a === undefined && b === undefined) {
+        return 0
+      } else if (b === undefined) {
+        return 1
+      } else if (a === undefined) {
+        return -1
+      } else if (a === b) {
+        continue
+      } else {
+        return compareIdentifiers(a, b)
+      }
+    } while (++i)
+  }
+
+  // preminor will bump the version up to the next minor release, and immediately
+  // down to pre-release. premajor and prepatch work the same way.
+  inc (release, identifier, identifierBase) {
+    if (release.startsWith('pre')) {
+      if (!identifier && identifierBase === false) {
+        throw new Error('invalid increment argument: identifier is empty')
+      }
+      // Avoid an invalid semver results
+      if (identifier) {
+        const match = `-${identifier}`.match(this.options.loose ? re[t.PRERELEASELOOSE] : re[t.PRERELEASE])
+        if (!match || match[1] !== identifier) {
+          throw new Error(`invalid identifier: ${identifier}`)
+        }
+      }
+    }
+
+    switch (release) {
+      case 'premajor':
+        this.prerelease.length = 0
+        this.patch = 0
+        this.minor = 0
+        this.major++
+        this.inc('pre', identifier, identifierBase)
+        break
+      case 'preminor':
+        this.prerelease.length = 0
+        this.patch = 0
+        this.minor++
+        this.inc('pre', identifier, identifierBase)
+        break
+      case 'prepatch':
+        // If this is already a prerelease, it will bump to the next version
+        // drop any prereleases that might already exist, since they are not
+        // relevant at this point.
+        this.prerelease.length = 0
+        this.inc('patch', identifier, identifierBase)
+        this.inc('pre', identifier, identifierBase)
+        break
+      // If the input is a non-prerelease version, this acts the same as
+      // prepatch.
+      case 'prerelease':
+        if (this.prerelease.length === 0) {
+          this.inc('patch', identifier, identifierBase)
+        }
+        this.inc('pre', identifier, identifierBase)
+        break
+      case 'release':
+        if (this.prerelease.length === 0) {
+          throw new Error(`version ${this.raw} is not a prerelease`)
+        }
+        this.prerelease.length = 0
+        break
+
+      case 'major':
+        // If this is a pre-major version, bump up to the same major version.
+        // Otherwise increment major.
+        // 1.0.0-5 bumps to 1.0.0
+        // 1.1.0 bumps to 2.0.0
+        if (
+          this.minor !== 0 ||
+          this.patch !== 0 ||
+          this.prerelease.length === 0
+        ) {
+          this.major++
+        }
+        this.minor = 0
+        this.patch = 0
+        this.prerelease = []
+        break
+      case 'minor':
+        // If this is a pre-minor version, bump up to the same minor version.
+        // Otherwise increment minor.
+        // 1.2.0-5 bumps to 1.2.0
+        // 1.2.1 bumps to 1.3.0
+        if (this.patch !== 0 || this.prerelease.length === 0) {
+          this.minor++
+        }
+        this.patch = 0
+        this.prerelease = []
+        break
+      case 'patch':
+        // If this is not a pre-release version, it will increment the patch.
+        // If it is a pre-release it will bump up to the same patch version.
+        // 1.2.0-5 patches to 1.2.0
+        // 1.2.0 patches to 1.2.1
+        if (this.prerelease.length === 0) {
+          this.patch++
+        }
+        this.prerelease = []
+        break
+      // This probably shouldn't be used publicly.
+      // 1.0.0 'pre' would become 1.0.0-0 which is the wrong direction.
+      case 'pre': {
+        const base = Number(identifierBase) ? 1 : 0
+
+        if (this.prerelease.length === 0) {
+          this.prerelease = [base]
+        } else {
+          let i = this.prerelease.length
+          while (--i >= 0) {
+            if (typeof this.prerelease[i] === 'number') {
+              this.prerelease[i]++
+              i = -2
+            }
+          }
+          if (i === -1) {
+            // didn't increment anything
+            if (identifier === this.prerelease.join('.') && identifierBase === false) {
+              throw new Error('invalid increment argument: identifier already exists')
+            }
+            this.prerelease.push(base)
+          }
+        }
+        if (identifier) {
+          // 1.2.0-beta.1 bumps to 1.2.0-beta.2,
+          // 1.2.0-beta.fooblz or 1.2.0-beta bumps to 1.2.0-beta.0
+          let prerelease = [identifier, base]
+          if (identifierBase === false) {
+            prerelease = [identifier]
+          }
+          if (compareIdentifiers(this.prerelease[0], identifier) === 0) {
+            if (isNaN(this.prerelease[1])) {
+              this.prerelease = prerelease
+            }
+          } else {
+            this.prerelease = prerelease
+          }
+        }
+        break
+      }
+      default:
+        throw new Error(`invalid increment argument: ${release}`)
+    }
+    this.raw = this.format()
+    if (this.build.length) {
+      this.raw += `+${this.build.join('.')}`
+    }
+    return this
+  }
+}
+
+module.exports = SemVer
+
+
+/***/ }),
+
+/***/ 2338:
+/***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+const SemVer = __nccwpck_require__(7163)
+
+const inc = (version, release, options, identifier, identifierBase) => {
+  if (typeof (options) === 'string') {
+    identifierBase = identifier
+    identifier = options
+    options = undefined
+  }
+
+  try {
+    return new SemVer(
+      version instanceof SemVer ? version.version : version,
+      options
+    ).inc(release, identifier, identifierBase).version
+  } catch (er) {
+    return null
+  }
+}
+module.exports = inc
+
+
+/***/ }),
+
+/***/ 5101:
+/***/ ((module) => {
+
+"use strict";
+
+
+// Note: this is the semver.org version of the spec that it implements
+// Not necessarily the package version of this code.
+const SEMVER_SPEC_VERSION = '2.0.0'
+
+const MAX_LENGTH = 256
+const MAX_SAFE_INTEGER = Number.MAX_SAFE_INTEGER ||
+/* istanbul ignore next */ 9007199254740991
+
+// Max safe segment length for coercion.
+const MAX_SAFE_COMPONENT_LENGTH = 16
+
+// Max safe length for a build identifier. The max length minus 6 characters for
+// the shortest version with a build 0.0.0+BUILD.
+const MAX_SAFE_BUILD_LENGTH = MAX_LENGTH - 6
+
+const RELEASE_TYPES = [
+  'major',
+  'premajor',
+  'minor',
+  'preminor',
+  'patch',
+  'prepatch',
+  'prerelease',
+]
+
+module.exports = {
+  MAX_LENGTH,
+  MAX_SAFE_COMPONENT_LENGTH,
+  MAX_SAFE_BUILD_LENGTH,
+  MAX_SAFE_INTEGER,
+  RELEASE_TYPES,
+  SEMVER_SPEC_VERSION,
+  FLAG_INCLUDE_PRERELEASE: 0b001,
+  FLAG_LOOSE: 0b010,
+}
+
+
+/***/ }),
+
+/***/ 1159:
+/***/ ((module) => {
+
+"use strict";
+
+
+const debug = (
+  typeof process === 'object' &&
+  process.env &&
+  process.env.NODE_DEBUG &&
+  /\bsemver\b/i.test(process.env.NODE_DEBUG)
+) ? (...args) => console.error('SEMVER', ...args)
+  : () => {}
+
+module.exports = debug
+
+
+/***/ }),
+
+/***/ 3348:
+/***/ ((module) => {
+
+"use strict";
+
+
+const numeric = /^[0-9]+$/
+const compareIdentifiers = (a, b) => {
+  if (typeof a === 'number' && typeof b === 'number') {
+    return a === b ? 0 : a < b ? -1 : 1
+  }
+
+  const anum = numeric.test(a)
+  const bnum = numeric.test(b)
+
+  if (anum && bnum) {
+    a = +a
+    b = +b
+  }
+
+  return a === b ? 0
+    : (anum && !bnum) ? -1
+    : (bnum && !anum) ? 1
+    : a < b ? -1
+    : 1
+}
+
+const rcompareIdentifiers = (a, b) => compareIdentifiers(b, a)
+
+module.exports = {
+  compareIdentifiers,
+  rcompareIdentifiers,
+}
+
+
+/***/ }),
+
+/***/ 356:
+/***/ ((module) => {
+
+"use strict";
+
+
+// parse out just the options we care about
+const looseOption = Object.freeze({ loose: true })
+const emptyOpts = Object.freeze({ })
+const parseOptions = options => {
+  if (!options) {
+    return emptyOpts
+  }
+
+  if (typeof options !== 'object') {
+    return looseOption
+  }
+
+  return options
+}
+module.exports = parseOptions
+
+
+/***/ }),
+
+/***/ 5471:
+/***/ ((module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+
+const {
+  MAX_SAFE_COMPONENT_LENGTH,
+  MAX_SAFE_BUILD_LENGTH,
+  MAX_LENGTH,
+} = __nccwpck_require__(5101)
+const debug = __nccwpck_require__(1159)
+exports = module.exports = {}
+
+// The actual regexps go on exports.re
+const re = exports.re = []
+const safeRe = exports.safeRe = []
+const src = exports.src = []
+const safeSrc = exports.safeSrc = []
+const t = exports.t = {}
+let R = 0
+
+const LETTERDASHNUMBER = '[a-zA-Z0-9-]'
+
+// Replace some greedy regex tokens to prevent regex dos issues. These regex are
+// used internally via the safeRe object since all inputs in this library get
+// normalized first to trim and collapse all extra whitespace. The original
+// regexes are exported for userland consumption and lower level usage. A
+// future breaking change could export the safer regex only with a note that
+// all input should have extra whitespace removed.
+const safeRegexReplacements = [
+  ['\\s', 1],
+  ['\\d', MAX_LENGTH],
+  [LETTERDASHNUMBER, MAX_SAFE_BUILD_LENGTH],
+]
+
+const makeSafeRegex = (value) => {
+  for (const [token, max] of safeRegexReplacements) {
+    value = value
+      .split(`${token}*`).join(`${token}{0,${max}}`)
+      .split(`${token}+`).join(`${token}{1,${max}}`)
+  }
+  return value
+}
+
+const createToken = (name, value, isGlobal) => {
+  const safe = makeSafeRegex(value)
+  const index = R++
+  debug(name, index, value)
+  t[name] = index
+  src[index] = value
+  safeSrc[index] = safe
+  re[index] = new RegExp(value, isGlobal ? 'g' : undefined)
+  safeRe[index] = new RegExp(safe, isGlobal ? 'g' : undefined)
+}
+
+// The following Regular Expressions can be used for tokenizing,
+// validating, and parsing SemVer version strings.
+
+// ## Numeric Identifier
+// A single `0`, or a non-zero digit followed by zero or more digits.
+
+createToken('NUMERICIDENTIFIER', '0|[1-9]\\d*')
+createToken('NUMERICIDENTIFIERLOOSE', '\\d+')
+
+// ## Non-numeric Identifier
+// Zero or more digits, followed by a letter or hyphen, and then zero or
+// more letters, digits, or hyphens.
+
+createToken('NONNUMERICIDENTIFIER', `\\d*[a-zA-Z-]${LETTERDASHNUMBER}*`)
+
+// ## Main Version
+// Three dot-separated numeric identifiers.
+
+createToken('MAINVERSION', `(${src[t.NUMERICIDENTIFIER]})\\.` +
+                   `(${src[t.NUMERICIDENTIFIER]})\\.` +
+                   `(${src[t.NUMERICIDENTIFIER]})`)
+
+createToken('MAINVERSIONLOOSE', `(${src[t.NUMERICIDENTIFIERLOOSE]})\\.` +
+                        `(${src[t.NUMERICIDENTIFIERLOOSE]})\\.` +
+                        `(${src[t.NUMERICIDENTIFIERLOOSE]})`)
+
+// ## Pre-release Version Identifier
+// A numeric identifier, or a non-numeric identifier.
+// Non-numberic identifiers include numberic identifiers but can be longer.
+// Therefore non-numberic identifiers must go first.
+
+createToken('PRERELEASEIDENTIFIER', `(?:${src[t.NONNUMERICIDENTIFIER]
+}|${src[t.NUMERICIDENTIFIER]})`)
+
+createToken('PRERELEASEIDENTIFIERLOOSE', `(?:${src[t.NONNUMERICIDENTIFIER]
+}|${src[t.NUMERICIDENTIFIERLOOSE]})`)
+
+// ## Pre-release Version
+// Hyphen, followed by one or more dot-separated pre-release version
+// identifiers.
+
+createToken('PRERELEASE', `(?:-(${src[t.PRERELEASEIDENTIFIER]
+}(?:\\.${src[t.PRERELEASEIDENTIFIER]})*))`)
+
+createToken('PRERELEASELOOSE', `(?:-?(${src[t.PRERELEASEIDENTIFIERLOOSE]
+}(?:\\.${src[t.PRERELEASEIDENTIFIERLOOSE]})*))`)
+
+// ## Build Metadata Identifier
+// Any combination of digits, letters, or hyphens.
+
+createToken('BUILDIDENTIFIER', `${LETTERDASHNUMBER}+`)
+
+// ## Build Metadata
+// Plus sign, followed by one or more period-separated build metadata
+// identifiers.
+
+createToken('BUILD', `(?:\\+(${src[t.BUILDIDENTIFIER]
+}(?:\\.${src[t.BUILDIDENTIFIER]})*))`)
+
+// ## Full Version String
+// A main version, followed optionally by a pre-release version and
+// build metadata.
+
+// Note that the only major, minor, patch, and pre-release sections of
+// the version string are capturing groups.  The build metadata is not a
+// capturing group, because it should not ever be used in version
+// comparison.
+
+createToken('FULLPLAIN', `v?${src[t.MAINVERSION]
+}${src[t.PRERELEASE]}?${
+  src[t.BUILD]}?`)
+
+createToken('FULL', `^${src[t.FULLPLAIN]}$`)
+
+// like full, but allows v1.2.3 and =1.2.3, which people do sometimes.
+// also, 1.0.0alpha1 (prerelease without the hyphen) which is pretty
+// common in the npm registry.
+createToken('LOOSEPLAIN', `[v=\\s]*${src[t.MAINVERSIONLOOSE]
+}${src[t.PRERELEASELOOSE]}?${
+  src[t.BUILD]}?`)
+
+createToken('LOOSE', `^${src[t.LOOSEPLAIN]}$`)
+
+createToken('GTLT', '((?:<|>)?=?)')
+
+// Something like "2.*" or "1.2.x".
+// Note that "x.x" is a valid xRange identifer, meaning "any version"
+// Only the first item is strictly required.
+createToken('XRANGEIDENTIFIERLOOSE', `${src[t.NUMERICIDENTIFIERLOOSE]}|x|X|\\*`)
+createToken('XRANGEIDENTIFIER', `${src[t.NUMERICIDENTIFIER]}|x|X|\\*`)
+
+createToken('XRANGEPLAIN', `[v=\\s]*(${src[t.XRANGEIDENTIFIER]})` +
+                   `(?:\\.(${src[t.XRANGEIDENTIFIER]})` +
+                   `(?:\\.(${src[t.XRANGEIDENTIFIER]})` +
+                   `(?:${src[t.PRERELEASE]})?${
+                     src[t.BUILD]}?` +
+                   `)?)?`)
+
+createToken('XRANGEPLAINLOOSE', `[v=\\s]*(${src[t.XRANGEIDENTIFIERLOOSE]})` +
+                        `(?:\\.(${src[t.XRANGEIDENTIFIERLOOSE]})` +
+                        `(?:\\.(${src[t.XRANGEIDENTIFIERLOOSE]})` +
+                        `(?:${src[t.PRERELEASELOOSE]})?${
+                          src[t.BUILD]}?` +
+                        `)?)?`)
+
+createToken('XRANGE', `^${src[t.GTLT]}\\s*${src[t.XRANGEPLAIN]}$`)
+createToken('XRANGELOOSE', `^${src[t.GTLT]}\\s*${src[t.XRANGEPLAINLOOSE]}$`)
+
+// Coercion.
+// Extract anything that could conceivably be a part of a valid semver
+createToken('COERCEPLAIN', `${'(^|[^\\d])' +
+              '(\\d{1,'}${MAX_SAFE_COMPONENT_LENGTH}})` +
+              `(?:\\.(\\d{1,${MAX_SAFE_COMPONENT_LENGTH}}))?` +
+              `(?:\\.(\\d{1,${MAX_SAFE_COMPONENT_LENGTH}}))?`)
+createToken('COERCE', `${src[t.COERCEPLAIN]}(?:$|[^\\d])`)
+createToken('COERCEFULL', src[t.COERCEPLAIN] +
+              `(?:${src[t.PRERELEASE]})?` +
+              `(?:${src[t.BUILD]})?` +
+              `(?:$|[^\\d])`)
+createToken('COERCERTL', src[t.COERCE], true)
+createToken('COERCERTLFULL', src[t.COERCEFULL], true)
+
+// Tilde ranges.
+// Meaning is "reasonably at or greater than"
+createToken('LONETILDE', '(?:~>?)')
+
+createToken('TILDETRIM', `(\\s*)${src[t.LONETILDE]}\\s+`, true)
+exports.tildeTrimReplace = '$1~'
+
+createToken('TILDE', `^${src[t.LONETILDE]}${src[t.XRANGEPLAIN]}$`)
+createToken('TILDELOOSE', `^${src[t.LONETILDE]}${src[t.XRANGEPLAINLOOSE]}$`)
+
+// Caret ranges.
+// Meaning is "at least and backwards compatible with"
+createToken('LONECARET', '(?:\\^)')
+
+createToken('CARETTRIM', `(\\s*)${src[t.LONECARET]}\\s+`, true)
+exports.caretTrimReplace = '$1^'
+
+createToken('CARET', `^${src[t.LONECARET]}${src[t.XRANGEPLAIN]}$`)
+createToken('CARETLOOSE', `^${src[t.LONECARET]}${src[t.XRANGEPLAINLOOSE]}$`)
+
+// A simple gt/lt/eq thing, or just "" to indicate "any version"
+createToken('COMPARATORLOOSE', `^${src[t.GTLT]}\\s*(${src[t.LOOSEPLAIN]})$|^$`)
+createToken('COMPARATOR', `^${src[t.GTLT]}\\s*(${src[t.FULLPLAIN]})$|^$`)
+
+// An expression to strip any whitespace between the gtlt and the thing
+// it modifies, so that `> 1.2.3` ==> `>1.2.3`
+createToken('COMPARATORTRIM', `(\\s*)${src[t.GTLT]
+}\\s*(${src[t.LOOSEPLAIN]}|${src[t.XRANGEPLAIN]})`, true)
+exports.comparatorTrimReplace = '$1$2$3'
+
+// Something like `1.2.3 - 1.2.4`
+// Note that these all use the loose form, because they'll be
+// checked against either the strict or loose comparator form
+// later.
+createToken('HYPHENRANGE', `^\\s*(${src[t.XRANGEPLAIN]})` +
+                   `\\s+-\\s+` +
+                   `(${src[t.XRANGEPLAIN]})` +
+                   `\\s*$`)
+
+createToken('HYPHENRANGELOOSE', `^\\s*(${src[t.XRANGEPLAINLOOSE]})` +
+                        `\\s+-\\s+` +
+                        `(${src[t.XRANGEPLAINLOOSE]})` +
+                        `\\s*$`)
+
+// Star ranges basically just allow anything at all.
+createToken('STAR', '(<|>)?=?\\s*\\*')
+// >=0.0.0 is like a star
+createToken('GTE0', '^\\s*>=\\s*0\\.0\\.0\\s*$')
+createToken('GTE0PRE', '^\\s*>=\\s*0\\.0\\.0-0\\s*$')
 
 
 /***/ }),

@@ -1,6 +1,6 @@
 import { RestEndpointMethodTypes } from "@octokit/plugin-rest-endpoint-methods";
-import { PR_EXPLAIN_MESSAGE } from "./constants.js";
-import { Config, octokit } from "./shared.js";
+import { PR_EXPLAIN_MESSAGE } from "./constants";
+import { Config, octokit } from "./shared";
 
 export async function tryMerge(headBranch: string, baseBranch: string) {
   console.log(`Trying to merge ${headBranch} branch into ${baseBranch} branch.`);
