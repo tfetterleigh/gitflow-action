@@ -1,0 +1,14 @@
+{
+  "event_name": "workflow_dispatch",
+  "event_path": "./.github/act/workflow_dispatch.json",
+  "inputs": {
+    "version": "1.2.3",
+    "version_increment": "patch",
+    "dry_run": "false"
+  },
+  "repository": {
+    "full_name": "owner/repo",
+    "name": "repo",
+    "owner": { "login": "owner" }
+  }
+}

@@ -15,6 +15,7 @@
     "@eslint/eslintrc": "^3.3.1",
     "@eslint/js": "^9.38.0",
     "@types/jest": "^30.0.0",
+    "@types/semver": "^7.7.1",
     "@typescript-eslint/eslint-plugin": "^8.46.2",
     "eslint": "^9.38.0",
     "eslint-plugin-jest": "^29.0.1",
@@ -30,6 +31,7 @@
   "dependencies": {
     "@actions/core": "^1.11.1",
     "@actions/github": "^6.0.1",
-    "@vercel/ncc": "^0.38.4"
+    "@vercel/ncc": "^0.38.4",
+    "semver": "^7.7.3"
   }
 }
