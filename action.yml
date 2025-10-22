@@ -6,9 +6,35 @@ runs:
   main: 'dist/index.js'
 
 inputs:
-  gh-token:
-    description: 'GITHUB_TOKEN'
+  version:
+    description: The version to be released
+    required: false
+    default: ""
+  version_increment:
+    description: The version increment to be released
+    required: false
+    default: ""
+  develop_branch:
+    description: The branch used for development
     required: true
+  main_branch:
+    description: The branch used for production
+    required: true
+  slack:
+    description: The slack options (channel, name mapping)
+    required: false
+  merge_back_from_main:
+    description: Merge back to develop from main instead of release branch
+    required: false
+    default: "false"
+  dry_run:
+    description: Dry run, don't create PR or release
+    required: false
+    default: "false"
+  release_summary:
+    description: Specify the release summary to be put in the last section of the release
+    required: false
+    default: ""
 
 branding:
   icon: 'git-pull-request'
