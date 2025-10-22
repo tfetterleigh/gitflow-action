@@ -9,9 +9,6 @@ inputs:
   gh-token:
     description: 'GITHUB_TOKEN'
     required: true
-  label:
-    description: 'Test label to add to PR'
-    required: true
 
 branding:
   icon: 'git-pull-request'
