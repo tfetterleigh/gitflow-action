@@ -56,15 +56,17 @@ async function executeOnRelease(): Promise<Result> {
     /**
      * Creating a hotfix release
      */
-    const now = pullRequest.merged_at ? new Date(pullRequest.merged_at) : new Date();
+    // const now = pullRequest.merged_at ? new Date(pullRequest.merged_at) : new Date();
 
-    version = `hotfix-${now.getFullYear()}${String(now.getMonth() + 1).padStart(
-      2,
-      "0"
-    )}${String(now.getDate()).padStart(2, "0")}${String(now.getHours()).padStart(
-      2,
-      "0"
-    )}${String(now.getMinutes()).padStart(2, "0")}`;
+    version = currentBranch.substring(Config.hotfixBranchPrefix.length);
+
+    // version = `hotfix-${now.getFullYear()}${String(now.getMonth() + 1).padStart(
+    //   2,
+    //   "0"
+    // )}${String(now.getDate()).padStart(2, "0")}${String(now.getHours()).padStart(
+    //   2,
+    //   "0"
+    // )}${String(now.getMinutes()).padStart(2, "0")}`;
   }
 
   console.log(`on-release: ${releaseCandidateType}(${version}): Generating release`);
