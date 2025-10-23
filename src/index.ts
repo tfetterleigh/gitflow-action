@@ -5,18 +5,24 @@ import { Result } from "./types";
 import { executeOnRelease } from "./post-release";
 import { createReleasePR } from "./release";
 import { createHotfix } from "./hotfix";
+import { updateHotfixPR } from "./updateHotfix";
 
 export async function run() {
   console.log("gitflow-action: running with config", Config);
   const isPullRequest =
     github.context.eventName === "pull_request" || github.context.eventName === "pull_request_target";
   const prIsClosed = isPullRequest && github.context.payload.action === "closed";
+  const isHotfixAndOpen =
+    isPullRequest && github.context.ref.startsWith("hotfix/") && github.context.payload.action === "open";
 
   let res;
 
   if (prIsClosed) {
     console.log("gitflow-action: is PR event and PR is closed. Running executeOnRelease");
     res = await executeOnRelease();
+  } else if (isHotfixAndOpen) {
+    console.log("gitflow-action: is PR event for hotfix and PR is open. Running updateHotfixPR");
+    res = await updateHotfixPR();
   } else if (github.context.eventName === "workflow_dispatch" && !Config.isHotfix) {
     console.log("gitflow-action: is workflow_dispatch and not a hotfix.  Running createReleasePR");
     res = await createReleasePR();

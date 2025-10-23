@@ -99,14 +99,20 @@ const shared_1 = __nccwpck_require__(3839);
 const post_release_1 = __nccwpck_require__(8811);
 const release_1 = __nccwpck_require__(9437);
 const hotfix_1 = __nccwpck_require__(3040);
+const updateHotfix_1 = __nccwpck_require__(8881);
 async function run() {
     console.log("gitflow-action: running with config", shared_1.Config);
     const isPullRequest = github.context.eventName === "pull_request" || github.context.eventName === "pull_request_target";
     const prIsClosed = isPullRequest && github.context.payload.action === "closed";
+    const isHotfixAndOpen = isPullRequest && github.context.ref.startsWith("hotfix/") && github.context.payload.action === "open";
     let res;
     if (prIsClosed) {
         console.log("gitflow-action: is PR event and PR is closed. Running executeOnRelease");
         res = await (0, post_release_1.executeOnRelease)();
+    }
+    else if (isHotfixAndOpen) {
+        console.log("gitflow-action: is PR event for hotfix and PR is open. Running updateHotfixPR");
+        res = await (0, updateHotfix_1.updateHotfixPR)();
     }
     else if (github.context.eventName === "workflow_dispatch" && !shared_1.Config.isHotfix) {
         console.log("gitflow-action: is workflow_dispatch and not a hotfix.  Running createReleasePR");
@@ -471,6 +477,139 @@ function getNextVersion(currentVersion, versionIncrement) {
         throw new Error(`get_next_version: Could not increment version ${currentVersion} with ${versionIncrement}`);
     }
     return increasedVersion;
+}
+
+
+/***/ }),
+
+/***/ 8881:
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+
+"use strict";
+
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.updateHotfixPR = updateHotfixPR;
+const shared_1 = __nccwpck_require__(3839);
+const github = __importStar(__nccwpck_require__(3228));
+async function updateHotfixPR() {
+    // const isDryRun = Config.isDryRun;
+    const hotfixBranch = github.context.ref;
+    const hotfixVersion = github.context.ref.substring(shared_1.Config.hotfixBranchPrefix.length);
+    const { data: latestRelease } = await shared_1.octokit.rest.repos.getLatestRelease(shared_1.Config.repo).catch(() => ({ data: null }));
+    const { data: pullRequests } = await shared_1.octokit.rest.pulls.list({
+        ...shared_1.Config.repo,
+        state: "open",
+        base: hotfixBranch,
+    });
+    if (pullRequests.length === 0) {
+        console.log(`update_hotfix: Pull request for ${hotfixBranch} not found.`);
+        return {
+            type: "none",
+        };
+    }
+    if (pullRequests.length > 1) {
+        console.log(`update_hotfix: Multiple pull requests for branch ${hotfixVersion} found.`);
+        return {
+            type: "none",
+        };
+    }
+    const pullRequestNumber = pullRequests[0].number;
+    const latest_release_tag_name = latestRelease?.tag_name;
+    const { data: releaseNotes } = await shared_1.octokit.rest.repos.generateReleaseNotes({
+        ...shared_1.Config.repo,
+        tag_name: hotfixVersion,
+        target_commitish: shared_1.Config.developBranch,
+        previous_tag_name: latest_release_tag_name,
+    });
+    const mergedPrNumbersWorking = (releaseNotes.body.match(/pull\/\d+/g) || []).map((prNumber) => Number(prNumber.replace("pull/", "")));
+    const pull_numbers_in_release = Array.from(new Set(mergedPrNumbersWorking)).sort().join(",");
+    const mergedPrNumbers = Array.from(new Set(pull_numbers_in_release.split(",").map(Number)));
+    // Get the PRs and parse the release summary
+    const mergedPrs = await Promise.all(mergedPrNumbers.map(async (prNumber) => {
+        const pr = await shared_1.octokit.rest.pulls.get({
+            ...shared_1.Config.repo,
+            pull_number: prNumber,
+        });
+        if (!pr.data.body) {
+            return;
+        }
+        const regex = /\\#\\# What does this PR do\?([\s\S]*?)\n\\#\\#/gm;
+        let match = regex.exec(pr.data.body)?.[1]?.trim();
+        // try to remove empty lines
+        match = match
+            ?.split("\n")
+            .map((s) => s.trim())
+            .filter(Boolean)
+            .map((s) => (s.startsWith("-") || s.startsWith("*") ? s : `* ${s}`))
+            .join("\n");
+        return {
+            summary: `${pr.data.title}\n${match}`,
+        };
+    })).then((prs) => prs.filter(Boolean));
+    if (mergedPrs.length === 0) {
+        console.log("No merged pr found.");
+    }
+    let releasePrBody;
+    if (mergedPrs.length === 0) {
+        releasePrBody = releaseNotes.body;
+    }
+    else {
+        const releaseSummary = mergedPrs.map((pr) => pr?.summary).join("\n\n");
+        releasePrBody = `${releaseNotes.body}
+
+## Release summary
+
+${releaseSummary}
+  `;
+    }
+    if (releasePrBody) {
+        await shared_1.octokit.rest.pulls.update({
+            ...shared_1.Config.repo,
+            pull_number: pullRequestNumber,
+            body: releasePrBody,
+        });
+    }
+    return {
+        type: "hotfix",
+        pull_number: pullRequestNumber,
+        pull_numbers_in_release: pull_numbers_in_release,
+        version: hotfixVersion,
+        release_branch: hotfixBranch,
+        latest_release_tag_name,
+    };
 }
 
 
