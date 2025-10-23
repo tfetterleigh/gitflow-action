@@ -84,7 +84,7 @@ async function executeOnRelease(): Promise<Result> {
   // delete release/hotfix branch after back merging
   await octokit.rest.git.deleteRef({
     ...Config.repo,
-    ref: `refs/heads/${currentBranch}`,
+    ref: `heads/${currentBranch}`,
   });
 
   console.log(`on-release: success`);

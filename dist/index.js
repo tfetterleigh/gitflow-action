@@ -252,7 +252,7 @@ async function executeOnRelease() {
     // delete release/hotfix branch after back merging
     await shared_1.octokit.rest.git.deleteRef({
         ...shared_1.Config.repo,
-        ref: `refs/heads/${currentBranch}`,
+        ref: `heads/${currentBranch}`,
     });
     console.log(`on-release: success`);
     // console.log(`post-release: process release ${release.name}`);
