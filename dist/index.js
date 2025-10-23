@@ -293,31 +293,15 @@ async function createReleasePR() {
 ${shared_1.Config.releaseSummary}
   `;
     const releaseBranch = `${shared_1.Config.releaseBranchPrefix}${version}`;
-    let pull_number;
+    let pullRequestNumber;
     if (!isDryRun) {
         console.log(`create_release: Creating release branch`);
         // create release branch from latest sha of develop branch
-        await shared_1.octokit.rest.git.createRef({
-            ...shared_1.Config.repo,
-            ref: `refs/heads/${releaseBranch}`,
-            sha: developBranchSha,
-        });
-        console.log(`create_release: Creating Pull Request`);
-        const { data: pullRequest } = await shared_1.octokit.rest.pulls.create({
-            ...shared_1.Config.repo,
-            title: `Release ${releaseNotes.name || version}`,
-            body: releasePrBody,
-            head: releaseBranch,
-            base: shared_1.Config.prodBranch,
-            maintainer_can_modify: false,
-        });
-        pull_number = pullRequest.number;
-        await shared_1.octokit.rest.issues.addLabels({
-            ...shared_1.Config.repo,
-            issue_number: pullRequest.number,
-            labels: ["release"],
-        });
-        await (0, utils_1.createExplainComment)(pullRequest.number);
+        await (0, shared_1.createBranch)(releaseBranch, developBranchSha);
+        const { data: pullRequest } = await (0, shared_1.createPullRequest)(`Release ${releaseNotes.name || version}`, releasePrBody, releaseBranch, shared_1.Config.prodBranch);
+        pullRequestNumber = pullRequest.number;
+        await (0, shared_1.addLabels)(pullRequestNumber, ["release"]);
+        await (0, utils_1.createExplainComment)(pullRequestNumber);
         console.log(`create_release: Pull request has been created at ${pullRequest.html_url}`);
     }
     else {
@@ -329,7 +313,7 @@ ${shared_1.Config.releaseSummary}
     mergedPrNumbers = Array.from(new Set(mergedPrNumbers)).sort();
     return {
         type: "release",
-        pull_number: pull_number,
+        pull_number: pullRequestNumber,
         pull_numbers_in_release: mergedPrNumbers.join(","),
         version,
         release_branch: releaseBranch,
@@ -380,6 +364,9 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Config = exports.octokit = void 0;
+exports.createBranch = createBranch;
+exports.createPullRequest = createPullRequest;
+exports.addLabels = addLabels;
 const core = __importStar(__nccwpck_require__(7484));
 const github = __importStar(__nccwpck_require__(3228));
 const githubToken = process.env.GITHUB_TOKEN;
@@ -402,6 +389,42 @@ exports.Config = {
     hotfixBranchPrefix: "hotfix/",
     slackOptionsStr: core.getInput("slack") || process.env.SLACK_OPTIONS,
 };
+async function createBranch(branch, sha) {
+    console.log(`create_branch: Creating branch ${branch} from ${sha}`);
+    return await exports.octokit.rest.git.createRef({
+        ...exports.Config.repo,
+        ref: `refs/heads/${branch}`,
+        sha: sha,
+    });
+}
+async function createPullRequest(title, body, head, base) {
+    console.log(`create_release: Creating Pull Request with title ${title} and body: \n${body}`);
+    return await exports.octokit.rest.pulls.create({
+        ...exports.Config.repo,
+        title: title,
+        body: body,
+        head: head,
+        base: base,
+        maintainer_can_modify: false,
+    });
+}
+async function addLabels(pull_number, labels) {
+    // validate
+    if (labels.length === 0) {
+        console.log(`add_labels: No labels to add`);
+        return;
+    }
+    if (pull_number === undefined) {
+        console.log(`add_labels: No PR number to add labels to`);
+        return;
+    }
+    console.log(`add_labels: Adding labels ${labels} to PR ${pull_number}`);
+    return await exports.octokit.rest.issues.addLabels({
+        ...exports.Config.repo,
+        issue_number: pull_number,
+        labels: labels,
+    });
+}
 
 
 /***/ }),

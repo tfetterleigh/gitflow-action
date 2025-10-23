@@ -1,6 +1,6 @@
 // @ts-check
 import semverInc from "semver/functions/inc.js";
-import { Config, octokit } from "./shared";
+import { addLabels, Config, createBranch, createPullRequest, octokit } from "./shared";
 import { Result } from "./types";
 import { createExplainComment } from "./utils";
 
@@ -52,38 +52,26 @@ ${Config.releaseSummary}
   `;
 
   const releaseBranch = `${Config.releaseBranchPrefix}${version}`;
-  let pull_number;
+  let pullRequestNumber;
 
   if (!isDryRun) {
     console.log(`create_release: Creating release branch`);
 
     // create release branch from latest sha of develop branch
-    await octokit.rest.git.createRef({
-      ...Config.repo,
-      ref: `refs/heads/${releaseBranch}`,
-      sha: developBranchSha,
-    });
+    await createBranch(releaseBranch, developBranchSha);
 
-    console.log(`create_release: Creating Pull Request`);
+    const { data: pullRequest } = await createPullRequest(
+      `Release ${releaseNotes.name || version}`,
+      releasePrBody,
+      releaseBranch,
+      Config.prodBranch
+    );
 
-    const { data: pullRequest } = await octokit.rest.pulls.create({
-      ...Config.repo,
-      title: `Release ${releaseNotes.name || version}`,
-      body: releasePrBody,
-      head: releaseBranch,
-      base: Config.prodBranch,
-      maintainer_can_modify: false,
-    });
+    pullRequestNumber = pullRequest.number;
 
-    pull_number = pullRequest.number;
+    await addLabels(pullRequestNumber, ["release"]);
 
-    await octokit.rest.issues.addLabels({
-      ...Config.repo,
-      issue_number: pullRequest.number,
-      labels: ["release"],
-    });
-
-    await createExplainComment(pullRequest.number);
+    await createExplainComment(pullRequestNumber);
 
     console.log(`create_release: Pull request has been created at ${pullRequest.html_url}`);
   } else {
@@ -101,7 +89,7 @@ ${Config.releaseSummary}
 
   return {
     type: "release",
-    pull_number: pull_number,
+    pull_number: pullRequestNumber,
     pull_numbers_in_release: mergedPrNumbers.join(","),
     version,
     release_branch: releaseBranch,

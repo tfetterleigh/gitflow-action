@@ -23,3 +23,45 @@ export const Config = {
   hotfixBranchPrefix: "hotfix/",
   slackOptionsStr: core.getInput("slack") || process.env.SLACK_OPTIONS,
 };
+
+export async function createBranch(branch: string, sha: string) {
+  console.log(`create_branch: Creating branch ${branch} from ${sha}`);
+  return await octokit.rest.git.createRef({
+    ...Config.repo,
+    ref: `refs/heads/${branch}`,
+    sha: sha,
+  });
+}
+
+export async function createPullRequest(title: string, body: string, head: string, base: string) {
+  console.log(`create_release: Creating Pull Request with title ${title} and body: \n${body}`);
+  return await octokit.rest.pulls.create({
+    ...Config.repo,
+    title: title,
+    body: body,
+    head: head,
+    base: base,
+    maintainer_can_modify: false,
+  });
+}
+
+export async function addLabels(pull_number: number, labels: string[]) {
+  // validate
+  if (labels.length === 0) {
+    console.log(`add_labels: No labels to add`);
+    return;
+  }
+
+  if (pull_number === undefined) {
+    console.log(`add_labels: No PR number to add labels to`);
+    return;
+  }
+
+  console.log(`add_labels: Adding labels ${labels} to PR ${pull_number}`);
+
+  return await octokit.rest.issues.addLabels({
+    ...Config.repo,
+    issue_number: pull_number,
+    labels: labels,
+  });
+}
