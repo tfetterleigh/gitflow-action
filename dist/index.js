@@ -223,24 +223,16 @@ async function executeOnRelease() {
     const currentBranch = pullRequest.head.ref;
     let version = "";
     if (releaseCandidateType === "release") {
-        /**
-         * Creating a release
-         */
         version = currentBranch.substring(shared_1.Config.releaseBranchPrefix.length);
     }
     else if (releaseCandidateType === "hotfix") {
-        /**
-         * Creating a hotfix release
-         */
-        // const now = pullRequest.merged_at ? new Date(pullRequest.merged_at) : new Date();
         version = currentBranch.substring(shared_1.Config.hotfixBranchPrefix.length);
-        // version = `hotfix-${now.getFullYear()}${String(now.getMonth() + 1).padStart(
-        //   2,
-        //   "0"
-        // )}${String(now.getDate()).padStart(2, "0")}${String(now.getHours()).padStart(
-        //   2,
-        //   "0"
-        // )}${String(now.getMinutes()).padStart(2, "0")}`;
+    }
+    if (version === "") {
+        console.log(`on-release: ${releaseCandidateType}(${version}): No version found`);
+        return {
+            type: "none",
+        };
     }
     console.log(`on-release: ${releaseCandidateType}(${version}): Generating release`);
     const pullRequestBody = pullRequest.body;
@@ -257,8 +249,13 @@ async function executeOnRelease() {
      */
     console.log(`on-release: ${releaseCandidateType}(${version}): Execute merge workflow`);
     await (0, utils_1.tryMerge)(shared_1.Config.mergeBackFromProd ? shared_1.Config.prodBranch : currentBranch, shared_1.Config.developBranch);
+    // delete release/hotfix branch after back merging
+    await shared_1.octokit.rest.git.deleteRef({
+        ...shared_1.Config.repo,
+        ref: `refs/heads/${currentBranch}`,
+    });
     console.log(`on-release: success`);
-    console.log(`post-release: process release ${release.name}`);
+    // console.log(`post-release: process release ${release.name}`);
     // if (Config.slackOptionsStr) {
     //     let slackOpts: SlackIntegrationOptions;
     //     try {
@@ -273,7 +270,7 @@ async function executeOnRelease() {
     //      */
     //     await sendToSlack(slackOpts, release);
     // }
-    console.log(`post-release: success`);
+    // console.log(`post-release: success`);
     return {
         type: releaseCandidateType,
         version,

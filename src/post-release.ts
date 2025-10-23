@@ -48,25 +48,16 @@ async function executeOnRelease(): Promise<Result> {
   let version = "";
 
   if (releaseCandidateType === "release") {
-    /**
-     * Creating a release
-     */
     version = currentBranch.substring(Config.releaseBranchPrefix.length);
   } else if (releaseCandidateType === "hotfix") {
-    /**
-     * Creating a hotfix release
-     */
-    // const now = pullRequest.merged_at ? new Date(pullRequest.merged_at) : new Date();
-
     version = currentBranch.substring(Config.hotfixBranchPrefix.length);
+  }
 
-    // version = `hotfix-${now.getFullYear()}${String(now.getMonth() + 1).padStart(
-    //   2,
-    //   "0"
-    // )}${String(now.getDate()).padStart(2, "0")}${String(now.getHours()).padStart(
-    //   2,
-    //   "0"
-    // )}${String(now.getMinutes()).padStart(2, "0")}`;
+  if (version === "") {
+    console.log(`on-release: ${releaseCandidateType}(${version}): No version found`);
+    return {
+      type: "none",
+    };
   }
 
   console.log(`on-release: ${releaseCandidateType}(${version}): Generating release`);
@@ -90,9 +81,15 @@ async function executeOnRelease(): Promise<Result> {
 
   await tryMerge(Config.mergeBackFromProd ? Config.prodBranch : currentBranch, Config.developBranch);
 
+  // delete release/hotfix branch after back merging
+  await octokit.rest.git.deleteRef({
+    ...Config.repo,
+    ref: `refs/heads/${currentBranch}`,
+  });
+
   console.log(`on-release: success`);
 
-  console.log(`post-release: process release ${release.name}`);
+  // console.log(`post-release: process release ${release.name}`);
   // if (Config.slackOptionsStr) {
   //     let slackOpts: SlackIntegrationOptions;
   //     try {
@@ -107,8 +104,7 @@ async function executeOnRelease(): Promise<Result> {
   //      */
   //     await sendToSlack(slackOpts, release);
   // }
-
-  console.log(`post-release: success`);
+  // console.log(`post-release: success`);
 
   return {
     type: releaseCandidateType,
