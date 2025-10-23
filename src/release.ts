@@ -48,15 +48,6 @@ export async function createReleasePR(): Promise<Result> {
   console.log(
     `create_release: Comparing dev commit ${developBranchSha} to latest release commit ${latest_release_tag_name}`
   );
-  const { data: properties } = await octokit.rest.repos.compareCommitsWithBasehead({
-    ...Config.repo,
-    basehead: `${developBranchSha}...${latest_release_tag_name}`,
-  });
-
-  // output for testing
-  console.log(
-    `create_release: Comparing dev commit ${developBranchSha} to latest release commit ${latest_release_tag_name} properties: ${JSON.stringify(properties.commits)}`
-  );
 
   const releasePrBody = `${releaseNotes.body}
     

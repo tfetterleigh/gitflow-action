@@ -288,12 +288,6 @@ async function createReleasePR() {
     });
     // compare dev commit to latest release commit
     console.log(`create_release: Comparing dev commit ${developBranchSha} to latest release commit ${latest_release_tag_name}`);
-    const { data: properties } = await shared_1.octokit.rest.repos.compareCommitsWithBasehead({
-        ...shared_1.Config.repo,
-        basehead: `${developBranchSha}...${latest_release_tag_name}`,
-    });
-    // output for testing
-    console.log(`create_release: Comparing dev commit ${developBranchSha} to latest release commit ${latest_release_tag_name} properties: ${JSON.stringify(properties.commits)}`);
     const releasePrBody = `${releaseNotes.body}
     
 ## Release summary
