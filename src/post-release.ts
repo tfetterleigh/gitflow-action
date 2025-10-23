@@ -1,7 +1,7 @@
 import * as github from "@actions/github";
 import { RestEndpointMethodTypes } from "@octokit/plugin-rest-endpoint-methods";
 import assert from "assert";
-import { Config, octokit } from "./shared";
+import { Config, generateReleaseNotes, getLatestRelease, octokit } from "./shared";
 import { Result } from "./types";
 import { isReleaseCandidate, tryMerge } from "./utils";
 
@@ -32,7 +32,7 @@ async function executeOnRelease(): Promise<Result> {
 
   /**
    * Precheck
-   * Check if the pull request has a release label, targeting main branch, and if it was merged
+   * Check if the pull request has a release label, targeting the main branch, and if it was merged
    */
   const pullRequestNumber = pullRequest.number;
   assert(pullRequestNumber, `github.context.payload.pull_request?.number is not defined`);
@@ -48,39 +48,24 @@ async function executeOnRelease(): Promise<Result> {
   let version = "";
 
   if (releaseCandidateType === "release") {
-    /**
-     * Creating a release
-     */
     version = currentBranch.substring(Config.releaseBranchPrefix.length);
   } else if (releaseCandidateType === "hotfix") {
-    /**
-     * Creating a hotfix release
-     */
-    // const now = pullRequest.merged_at ? new Date(pullRequest.merged_at) : new Date();
-
     version = currentBranch.substring(Config.hotfixBranchPrefix.length);
-
-    // version = `hotfix-${now.getFullYear()}${String(now.getMonth() + 1).padStart(
-    //   2,
-    //   "0"
-    // )}${String(now.getDate()).padStart(2, "0")}${String(now.getHours()).padStart(
-    //   2,
-    //   "0"
-    // )}${String(now.getMinutes()).padStart(2, "0")}`;
   }
 
   console.log(`on-release: ${releaseCandidateType}(${version}): Generating release`);
+  const latestRelease = await getLatestRelease();
 
-  const pullRequestBody = pullRequest.body;
+  const latest_release_tag_name = latestRelease?.tag_name;
 
-  assert(pullRequestBody, `pull request body is not defined`);
+  const releaseNotes = await generateReleaseNotes(Config.prodBranch, version, latest_release_tag_name);
 
   const { data: release } = await octokit.rest.repos.createRelease({
     ...Config.repo,
     tag_name: version,
     target_commitish: Config.prodBranch,
     name: version,
-    body: pullRequestBody,
+    body: releaseNotes.body,
   });
 
   /**

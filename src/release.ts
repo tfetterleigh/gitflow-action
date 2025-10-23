@@ -1,4 +1,13 @@
-import { addLabels, Config, createBranch, createPullRequest, getNextVersion, octokit } from "./shared";
+import {
+  addLabels,
+  Config,
+  createBranch,
+  createPullRequest,
+  generateReleaseNotes,
+  getLatestRelease,
+  getNextVersion,
+  octokit,
+} from "./shared";
 import { Result } from "./types";
 import { createExplainComment } from "./utils";
 
@@ -16,7 +25,7 @@ export async function createReleasePR(): Promise<Result> {
 
   // developBranch and mainBranch are almost identical
   // so we can use developBranch for ahead-of-time release note
-  const { data: latestRelease } = await octokit.rest.repos.getLatestRelease(Config.repo).catch(() => ({ data: null }));
+  const latestRelease = await getLatestRelease();
 
   const latest_release_tag_name = latestRelease?.tag_name;
 
@@ -29,12 +38,7 @@ export async function createReleasePR(): Promise<Result> {
     version = developBranchSha;
   }
 
-  const { data: releaseNotes } = await octokit.rest.repos.generateReleaseNotes({
-    ...Config.repo,
-    tag_name: version,
-    target_commitish: Config.developBranch,
-    previous_tag_name: latest_release_tag_name,
-  });
+  const releaseNotes = await generateReleaseNotes(Config.developBranch, version, latest_release_tag_name);
 
   // compare dev commit to latest release commit
   console.log(
