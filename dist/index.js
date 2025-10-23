@@ -293,7 +293,7 @@ async function createReleasePR() {
         basehead: `${developBranchSha}...${latest_release_tag_name}`,
     });
     // output for testing
-    console.log(`create_release: Comparing dev commit ${developBranchSha} to latest release commit ${latest_release_tag_name} properties: ${JSON.stringify(properties)}`);
+    console.log(`create_release: Comparing dev commit ${developBranchSha} to latest release commit ${latest_release_tag_name} properties: ${JSON.stringify(properties.commits)}`);
     const releasePrBody = `${releaseNotes.body}
     
 ## Release summary
