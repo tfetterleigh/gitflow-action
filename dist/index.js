@@ -211,7 +211,7 @@ async function executeOnRelease() {
     }
     /**
      * Precheck
-     * Check if the pull request has a release label, targeting the main branch, and if it was merged
+     * Check if the pull request has a release label, targeting main branch, and if it was merged
      */
     const pullRequestNumber = pullRequest.number;
     (0, assert_1.default)(pullRequestNumber, `github.context.payload.pull_request?.number is not defined`);
@@ -223,21 +223,34 @@ async function executeOnRelease() {
     const currentBranch = pullRequest.head.ref;
     let version = "";
     if (releaseCandidateType === "release") {
+        /**
+         * Creating a release
+         */
         version = currentBranch.substring(shared_1.Config.releaseBranchPrefix.length);
     }
     else if (releaseCandidateType === "hotfix") {
+        /**
+         * Creating a hotfix release
+         */
+        // const now = pullRequest.merged_at ? new Date(pullRequest.merged_at) : new Date();
         version = currentBranch.substring(shared_1.Config.hotfixBranchPrefix.length);
+        // version = `hotfix-${now.getFullYear()}${String(now.getMonth() + 1).padStart(
+        //   2,
+        //   "0"
+        // )}${String(now.getDate()).padStart(2, "0")}${String(now.getHours()).padStart(
+        //   2,
+        //   "0"
+        // )}${String(now.getMinutes()).padStart(2, "0")}`;
     }
     console.log(`on-release: ${releaseCandidateType}(${version}): Generating release`);
-    const latestRelease = await (0, shared_1.getLatestRelease)();
-    const latest_release_tag_name = latestRelease?.tag_name;
-    const releaseNotes = await (0, shared_1.generateReleaseNotes)(shared_1.Config.prodBranch, version, latest_release_tag_name);
+    const pullRequestBody = pullRequest.body;
+    (0, assert_1.default)(pullRequestBody, `pull request body is not defined`);
     const { data: release } = await shared_1.octokit.rest.repos.createRelease({
         ...shared_1.Config.repo,
         tag_name: version,
         target_commitish: shared_1.Config.prodBranch,
         name: version,
-        body: releaseNotes.body,
+        body: pullRequestBody,
     });
     /**
      * Merging the release or hotfix branch back to the develop branch if needed
@@ -289,7 +302,7 @@ async function createReleasePR() {
     console.log(`create_release: Generating release notes for ${developBranchSha}`);
     // developBranch and mainBranch are almost identical
     // so we can use developBranch for ahead-of-time release note
-    const latestRelease = await (0, shared_1.getLatestRelease)();
+    const { data: latestRelease } = await shared_1.octokit.rest.repos.getLatestRelease(shared_1.Config.repo).catch(() => ({ data: null }));
     const latest_release_tag_name = latestRelease?.tag_name;
     let version;
     if (shared_1.Config.version) {
@@ -301,7 +314,12 @@ async function createReleasePR() {
     else {
         version = developBranchSha;
     }
-    const releaseNotes = await (0, shared_1.generateReleaseNotes)(shared_1.Config.developBranch, version, latest_release_tag_name);
+    const { data: releaseNotes } = await shared_1.octokit.rest.repos.generateReleaseNotes({
+        ...shared_1.Config.repo,
+        tag_name: version,
+        target_commitish: shared_1.Config.developBranch,
+        previous_tag_name: latest_release_tag_name,
+    });
     // compare dev commit to latest release commit
     console.log(`create_release: Comparing dev commit ${developBranchSha} to latest release commit ${latest_release_tag_name}`);
     const releasePrBody = `${releaseNotes.body}
@@ -389,8 +407,6 @@ exports.createBranch = createBranch;
 exports.createPullRequest = createPullRequest;
 exports.addLabels = addLabels;
 exports.getNextVersion = getNextVersion;
-exports.generateReleaseNotes = generateReleaseNotes;
-exports.getLatestRelease = getLatestRelease;
 const core = __importStar(__nccwpck_require__(7484));
 const github = __importStar(__nccwpck_require__(3228));
 const inc_1 = __importDefault(__nccwpck_require__(2338));
@@ -458,19 +474,6 @@ function getNextVersion(currentVersion, versionIncrement) {
         throw new Error(`get_next_version: Could not increment version ${currentVersion} with ${versionIncrement}`);
     }
     return increasedVersion;
-}
-async function generateReleaseNotes(targetCommitish, newVersion, previousTag = "") {
-    const { data: releaseNotes } = await exports.octokit.rest.repos.generateReleaseNotes({
-        ...exports.Config.repo,
-        tag_name: newVersion,
-        target_commitish: targetCommitish,
-        previous_tag_name: previousTag,
-    });
-    return releaseNotes;
-}
-async function getLatestRelease() {
-    const { data: latestRelease } = await exports.octokit.rest.repos.getLatestRelease(exports.Config.repo).catch(() => ({ data: null }));
-    return latestRelease;
 }
 
 

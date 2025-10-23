@@ -84,20 +84,3 @@ export function getNextVersion(currentVersion: string, versionIncrement: Release
 
   return increasedVersion;
 }
-
-export async function generateReleaseNotes(targetCommitish: string, newVersion: string, previousTag: string = "") {
-  const { data: releaseNotes } = await octokit.rest.repos.generateReleaseNotes({
-    ...Config.repo,
-    tag_name: newVersion,
-    target_commitish: targetCommitish,
-    previous_tag_name: previousTag,
-  });
-
-  return releaseNotes;
-}
-
-export async function getLatestRelease() {
-  const { data: latestRelease } = await octokit.rest.repos.getLatestRelease(Config.repo).catch(() => ({ data: null }));
-
-  return latestRelease;
-}
