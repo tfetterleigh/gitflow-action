@@ -1,6 +1,7 @@
 import * as core from "@actions/core";
 import * as github from "@actions/github";
 import { ReleaseType } from "semver";
+import semverInc from "semver/functions/inc";
 
 const githubToken = process.env.GITHUB_TOKEN;
 if (!githubToken) throw new Error(`process.env.GITHUB_TOKEN is not defined`);
@@ -22,6 +23,7 @@ export const Config = {
   releaseBranchPrefix: "release/",
   hotfixBranchPrefix: "hotfix/",
   slackOptionsStr: core.getInput("slack") || process.env.SLACK_OPTIONS,
+  isHotfix: (core.getInput("is_hotfix") || process.env.IS_HOTFIX) == "true",
 };
 
 export async function createBranch(branch: string, sha: string) {
@@ -33,7 +35,13 @@ export async function createBranch(branch: string, sha: string) {
   });
 }
 
-export async function createPullRequest(title: string, body: string, head: string, base: string) {
+export async function createPullRequest(
+  title: string,
+  body: string,
+  head: string,
+  base: string,
+  draft: boolean = true
+) {
   console.log(`create_release: Creating Pull Request with title ${title} and body: \n${body}`);
   return await octokit.rest.pulls.create({
     ...Config.repo,
@@ -42,6 +50,7 @@ export async function createPullRequest(title: string, body: string, head: strin
     head: head,
     base: base,
     maintainer_can_modify: false,
+    draft: draft,
   });
 }
 
@@ -64,4 +73,14 @@ export async function addLabels(pull_number: number, labels: string[]) {
     issue_number: pull_number,
     labels: labels,
   });
+}
+
+export function getNextVersion(currentVersion: string, versionIncrement: ReleaseType) {
+  const increasedVersion = semverInc(currentVersion || "0.0.0", versionIncrement, { loose: true });
+
+  if (!increasedVersion) {
+    throw new Error(`get_next_version: Could not increment version ${currentVersion} with ${versionIncrement}`);
+  }
+
+  return increasedVersion;
 }

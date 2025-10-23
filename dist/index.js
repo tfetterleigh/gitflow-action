@@ -15,6 +15,52 @@ See [Gitflow Workflow](https://www.atlassian.com/git/tutorials/comparing-workflo
 
 /***/ }),
 
+/***/ 3040:
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.createHotfix = createHotfix;
+const shared_1 = __nccwpck_require__(3839);
+const utils_1 = __nccwpck_require__(9277);
+async function createHotfix() {
+    const isDryRun = shared_1.Config.isDryRun;
+    const prodBranchSha = (await shared_1.octokit.rest.repos.getBranch({
+        ...shared_1.Config.repo,
+        branch: shared_1.Config.prodBranch,
+    })).data.commit.sha;
+    const { data: latestRelease } = await shared_1.octokit.rest.repos.getLatestRelease(shared_1.Config.repo).catch(() => ({ data: null }));
+    const latest_release_tag_name = latestRelease?.tag_name;
+    const version = (0, shared_1.getNextVersion)(latest_release_tag_name || "0.0.0", shared_1.Config.versionIncrement);
+    const hotfixBranch = `${shared_1.Config.hotfixBranchPrefix}${version}`;
+    let pullRequestNumber;
+    if (!isDryRun) {
+        console.log(`create_hotfix: Creating hotfix branch`);
+        // create hotfix branch from latest sha of prod branch
+        await (0, shared_1.createBranch)(hotfixBranch, prodBranchSha);
+        const { data: pullRequest } = await (0, shared_1.createPullRequest)(`Hotfix ${version}`, `Hotfix ${version} draft`, hotfixBranch, shared_1.Config.prodBranch);
+        pullRequestNumber = pullRequest.number;
+        await (0, shared_1.addLabels)(pullRequestNumber, ["hotfix"]);
+        await (0, utils_1.createExplainComment)(pullRequestNumber);
+        console.log(`create_hotfix: Pull request has been created at ${pullRequest.html_url}`);
+    }
+    else {
+        console.log(`create_hotfix: Dry run: would have created hotfix branch ${hotfixBranch}`);
+    }
+    return {
+        type: "hotfix",
+        pull_number: pullRequestNumber,
+        pull_numbers_in_release: "",
+        version,
+        release_branch: hotfixBranch,
+        latest_release_tag_name,
+    };
+}
+
+
+/***/ }),
+
 /***/ 1188:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -60,6 +106,7 @@ const core = __importStar(__nccwpck_require__(7484));
 const shared_1 = __nccwpck_require__(3839);
 const post_release_1 = __nccwpck_require__(8811);
 const release_1 = __nccwpck_require__(9437);
+const hotfix_1 = __nccwpck_require__(3040);
 async function run() {
     console.log("gitflow-action: running with config", shared_1.Config);
     const isPullRequest = github.context.eventName === "pull_request" || github.context.eventName === "pull_request_target";
@@ -69,9 +116,13 @@ async function run() {
         console.log("gitflow-action: is PR event and PR is closed. Running executeOnRelease");
         res = await (0, post_release_1.executeOnRelease)();
     }
-    else if (github.context.eventName === "workflow_dispatch") {
-        console.log("gitflow-action: is workflow_dispatch.  Running createReleasePR");
+    else if (github.context.eventName === "workflow_dispatch" && !shared_1.Config.isHotfix) {
+        console.log("gitflow-action: is workflow_dispatch and not a hotfix.  Running createReleasePR");
         res = await (0, release_1.createReleasePR)();
+    }
+    else if (github.context.eventName === "workflow_dispatch" && shared_1.Config.isHotfix) {
+        console.log("gitflow-action: is workflow_dispatch and is a hotfix.  Running createHotfix");
+        res = await (0, hotfix_1.createHotfix)();
     }
     else {
         console.log("gitflow-action: no conditions matched");
@@ -242,17 +293,12 @@ async function executeOnRelease() {
 /***/ }),
 
 /***/ 9437:
-/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
+/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
 
 "use strict";
 
-var __importDefault = (this && this.__importDefault) || function (mod) {
-    return (mod && mod.__esModule) ? mod : { "default": mod };
-};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.createReleasePR = createReleasePR;
-// @ts-check
-const inc_js_1 = __importDefault(__nccwpck_require__(2338));
 const shared_1 = __nccwpck_require__(3839);
 const utils_1 = __nccwpck_require__(9277);
 async function createReleasePR() {
@@ -271,11 +317,7 @@ async function createReleasePR() {
         version = shared_1.Config.version;
     }
     else if (shared_1.Config.versionIncrement) {
-        const increasedVersion = (0, inc_js_1.default)(latest_release_tag_name || "0.0.0", shared_1.Config.versionIncrement, { loose: true });
-        if (!increasedVersion) {
-            throw new Error(`create_release: Could not increment version ${latest_release_tag_name} with ${shared_1.Config.versionIncrement}`);
-        }
-        version = increasedVersion;
+        version = (0, shared_1.getNextVersion)(latest_release_tag_name || "0.0.0", shared_1.Config.versionIncrement);
     }
     else {
         version = developBranchSha;
@@ -364,13 +406,18 @@ var __importStar = (this && this.__importStar) || (function () {
         return result;
     };
 })();
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Config = exports.octokit = void 0;
 exports.createBranch = createBranch;
 exports.createPullRequest = createPullRequest;
 exports.addLabels = addLabels;
+exports.getNextVersion = getNextVersion;
 const core = __importStar(__nccwpck_require__(7484));
 const github = __importStar(__nccwpck_require__(3228));
+const inc_1 = __importDefault(__nccwpck_require__(2338));
 const githubToken = process.env.GITHUB_TOKEN;
 if (!githubToken)
     throw new Error(`process.env.GITHUB_TOKEN is not defined`);
@@ -390,6 +437,7 @@ exports.Config = {
     releaseBranchPrefix: "release/",
     hotfixBranchPrefix: "hotfix/",
     slackOptionsStr: core.getInput("slack") || process.env.SLACK_OPTIONS,
+    isHotfix: (core.getInput("is_hotfix") || process.env.IS_HOTFIX) == "true",
 };
 async function createBranch(branch, sha) {
     console.log(`create_branch: Creating branch ${branch} from ${sha}`);
@@ -399,7 +447,7 @@ async function createBranch(branch, sha) {
         sha: sha,
     });
 }
-async function createPullRequest(title, body, head, base) {
+async function createPullRequest(title, body, head, base, draft = true) {
     console.log(`create_release: Creating Pull Request with title ${title} and body: \n${body}`);
     return await exports.octokit.rest.pulls.create({
         ...exports.Config.repo,
@@ -408,6 +456,7 @@ async function createPullRequest(title, body, head, base) {
         head: head,
         base: base,
         maintainer_can_modify: false,
+        draft: draft,
     });
 }
 async function addLabels(pull_number, labels) {
@@ -426,6 +475,13 @@ async function addLabels(pull_number, labels) {
         issue_number: pull_number,
         labels: labels,
     });
+}
+function getNextVersion(currentVersion, versionIncrement) {
+    const increasedVersion = (0, inc_1.default)(currentVersion || "0.0.0", versionIncrement, { loose: true });
+    if (!increasedVersion) {
+        throw new Error(`get_next_version: Could not increment version ${currentVersion} with ${versionIncrement}`);
+    }
+    return increasedVersion;
 }
 
 

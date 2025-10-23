@@ -1,6 +1,4 @@
-// @ts-check
-import semverInc from "semver/functions/inc.js";
-import { addLabels, Config, createBranch, createPullRequest, octokit } from "./shared";
+import { addLabels, Config, createBranch, createPullRequest, getNextVersion, octokit } from "./shared";
 import { Result } from "./types";
 import { createExplainComment } from "./utils";
 
@@ -26,13 +24,7 @@ export async function createReleasePR(): Promise<Result> {
   if (Config.version) {
     version = Config.version;
   } else if (Config.versionIncrement) {
-    const increasedVersion = semverInc(latest_release_tag_name || "0.0.0", Config.versionIncrement, { loose: true });
-    if (!increasedVersion) {
-      throw new Error(
-        `create_release: Could not increment version ${latest_release_tag_name} with ${Config.versionIncrement}`
-      );
-    }
-    version = increasedVersion;
+    version = getNextVersion(latest_release_tag_name || "0.0.0", Config.versionIncrement);
   } else {
     version = developBranchSha;
   }

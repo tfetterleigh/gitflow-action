@@ -35,6 +35,10 @@ inputs:
     description: Specify the release summary to be put in the last section of the release
     required: false
     default: ""
+  is_hotfix:
+    description: Is this a hotfix?
+    required: false
+    default: "false"
 
 branding:
   icon: 'git-pull-request'
