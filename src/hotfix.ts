@@ -16,7 +16,8 @@ export async function createHotfix(): Promise<Result> {
 
   const latest_release_tag_name = latestRelease?.tag_name;
 
-  const version = getNextVersion(latest_release_tag_name || "0.0.0", Config.versionIncrement);
+  // version will always be patch for hotfix
+  const version = getNextVersion(latest_release_tag_name || "0.0.0", "patch");
 
   const hotfixBranch = `${Config.hotfixBranchPrefix}${version}`;
   let pullRequestNumber;

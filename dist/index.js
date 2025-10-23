@@ -32,7 +32,8 @@ async function createHotfix() {
     })).data.commit.sha;
     const { data: latestRelease } = await shared_1.octokit.rest.repos.getLatestRelease(shared_1.Config.repo).catch(() => ({ data: null }));
     const latest_release_tag_name = latestRelease?.tag_name;
-    const version = (0, shared_1.getNextVersion)(latest_release_tag_name || "0.0.0", shared_1.Config.versionIncrement);
+    // version will always be patch for hotfix
+    const version = (0, shared_1.getNextVersion)(latest_release_tag_name || "0.0.0", "patch");
     const hotfixBranch = `${shared_1.Config.hotfixBranchPrefix}${version}`;
     let pullRequestNumber;
     if (!isDryRun) {
