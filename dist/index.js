@@ -23,7 +23,6 @@ See [Gitflow Workflow](https://www.atlassian.com/git/tutorials/comparing-workflo
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.createHotfix = createHotfix;
 const shared_1 = __nccwpck_require__(3839);
-const utils_1 = __nccwpck_require__(9277);
 async function createHotfix() {
     const isDryRun = shared_1.Config.isDryRun;
     const prodBranchSha = (await shared_1.octokit.rest.repos.getBranch({
@@ -35,24 +34,16 @@ async function createHotfix() {
     // version will always be patch for hotfix
     const version = (0, shared_1.getNextVersion)(latest_release_tag_name || "0.0.0", "patch");
     const hotfixBranch = `${shared_1.Config.hotfixBranchPrefix}${version}`;
-    let pullRequestNumber;
     if (!isDryRun) {
         console.log(`create_hotfix: Creating hotfix branch`);
         // create hotfix branch from latest sha of prod branch
         await (0, shared_1.createBranch)(hotfixBranch, prodBranchSha);
-        const { data: pullRequest } = await (0, shared_1.createPullRequest)(`Hotfix ${version}`, `Hotfix ${version} draft`, hotfixBranch, shared_1.Config.prodBranch);
-        pullRequestNumber = pullRequest.number;
-        await (0, shared_1.addLabels)(pullRequestNumber, ["hotfix"]);
-        await (0, utils_1.createExplainComment)(pullRequestNumber);
-        console.log(`create_hotfix: Pull request has been created at ${pullRequest.html_url}`);
     }
     else {
         console.log(`create_hotfix: Dry run: would have created hotfix branch ${hotfixBranch}`);
     }
     return {
         type: "hotfix",
-        pull_number: pullRequestNumber,
-        pull_numbers_in_release: "",
         version,
         release_branch: hotfixBranch,
         latest_release_tag_name,
