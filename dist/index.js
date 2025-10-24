@@ -438,6 +438,7 @@ exports.Config = {
     hotfixBranchPrefix: "hotfix/",
     slackOptionsStr: core.getInput("slack") || process.env.SLACK_OPTIONS,
     isHotfix: (core.getInput("is_hotfix") || process.env.IS_HOTFIX) == "true",
+    mergeUserToken: core.getInput("merge_user_token") || "",
 };
 async function createBranch(branch, sha) {
     console.log(`create_branch: Creating branch ${branch} from ${sha}`);
@@ -590,10 +591,43 @@ async function updateHotfixPR() {
 /***/ }),
 
 /***/ 9277:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
+/***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
 "use strict";
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.removeHtmlComments = void 0;
 exports.tryMerge = tryMerge;
@@ -601,6 +635,7 @@ exports.isReleaseCandidate = isReleaseCandidate;
 exports.createExplainComment = createExplainComment;
 const constants_1 = __nccwpck_require__(8729);
 const shared_1 = __nccwpck_require__(3839);
+const github = __importStar(__nccwpck_require__(3228));
 async function tryMerge(headBranch, baseBranch) {
     console.log(`Trying to merge ${headBranch} branch into ${baseBranch} branch.`);
     let compareCommitsResult;
@@ -619,7 +654,14 @@ async function tryMerge(headBranch, baseBranch) {
     if (compareCommitsResult.status !== "identical") {
         console.log(`${headBranch} branch is not up to date with ${baseBranch} branch. Attempting to merge.`);
         try {
-            await shared_1.octokit.rest.repos.merge({
+            // set a new var for octokit, so we can use the mergeUserToken if it's set to bypass protected branches.
+            let updatedOctokit = shared_1.octokit;
+            // check if user passes mergeUserToken secret
+            if (shared_1.Config.mergeUserToken !== "") {
+                // update octokit to use this token
+                updatedOctokit = github.getOctokit(shared_1.Config.mergeUserToken);
+            }
+            await updatedOctokit.rest.repos.merge({
                 ...shared_1.Config.repo,
                 base: baseBranch,
                 head: headBranch,

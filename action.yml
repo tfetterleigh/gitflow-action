@@ -39,6 +39,9 @@ inputs:
     description: Is this a hotfix?
     required: false
     default: "false"
+  merge_user_token:
+    description: The token to use for merging on write protected branches
+    required: false
 
 branding:
   icon: 'git-pull-request'

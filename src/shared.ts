@@ -24,6 +24,7 @@ export const Config = {
   hotfixBranchPrefix: "hotfix/",
   slackOptionsStr: core.getInput("slack") || process.env.SLACK_OPTIONS,
   isHotfix: (core.getInput("is_hotfix") || process.env.IS_HOTFIX) == "true",
+  mergeUserToken: core.getInput("merge_user_token") || "",
 };
 
 export async function createBranch(branch: string, sha: string) {
