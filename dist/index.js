@@ -538,18 +538,22 @@ async function updateHotfixPR() {
             type: "none",
         };
     }
+    console.log(`update_hotfix: Pull request found in payload.`);
     const hotfixBranch = pullRequest.head.ref;
     const hotfixVersion = hotfixBranch.substring(shared_1.Config.hotfixBranchPrefix.length);
     const pullRequestNumber = pullRequest.number;
     const { data: latestRelease } = await shared_1.octokit.rest.repos.getLatestRelease(shared_1.Config.repo).catch(() => ({ data: null }));
     const latest_release_tag_name = latestRelease?.tag_name;
+    console.log(`update_hotfix: Latest release tag name: ${latest_release_tag_name}. Hotfix branch: ${hotfixBranch}. Hotfix version: ${hotfixVersion}.`);
     const { data: releaseNotes } = await shared_1.octokit.rest.repos.generateReleaseNotes({
         ...shared_1.Config.repo,
         tag_name: hotfixVersion,
         target_commitish: hotfixBranch,
         previous_tag_name: latest_release_tag_name,
     });
+    console.log(`update_hotfix: Release notes: ${releaseNotes.body}.`);
     const mergedPrNumbersWorking = (releaseNotes.body.match(/pull\/\d+/g) || []).map((prNumber) => Number(prNumber.replace("pull/", "")));
+    console.log(`update_hotfix: Merged PR numbers: ${mergedPrNumbersWorking}.`);
     const pull_numbers_in_release = Array.from(new Set(mergedPrNumbersWorking)).sort().join(",");
     const mergedPrNumbers = Array.from(new Set(pull_numbers_in_release.split(",").map(Number)));
     // Get the PRs and parse the release summary

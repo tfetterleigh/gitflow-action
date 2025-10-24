@@ -13,12 +13,18 @@ export async function updateHotfixPR(): Promise<Result> {
     };
   }
 
+  console.log(`update_hotfix: Pull request found in payload.`);
+
   const hotfixBranch = pullRequest.head.ref;
   const hotfixVersion = hotfixBranch.substring(Config.hotfixBranchPrefix.length);
   const pullRequestNumber = pullRequest.number;
   const { data: latestRelease } = await octokit.rest.repos.getLatestRelease(Config.repo).catch(() => ({ data: null }));
 
   const latest_release_tag_name = latestRelease?.tag_name;
+
+  console.log(
+    `update_hotfix: Latest release tag name: ${latest_release_tag_name}. Hotfix branch: ${hotfixBranch}. Hotfix version: ${hotfixVersion}.`
+  );
 
   const { data: releaseNotes } = await octokit.rest.repos.generateReleaseNotes({
     ...Config.repo,
@@ -27,9 +33,13 @@ export async function updateHotfixPR(): Promise<Result> {
     previous_tag_name: latest_release_tag_name,
   });
 
+  console.log(`update_hotfix: Release notes: ${releaseNotes.body}.`);
+
   const mergedPrNumbersWorking = (releaseNotes.body.match(/pull\/\d+/g) || []).map((prNumber) =>
     Number(prNumber.replace("pull/", ""))
   );
+
+  console.log(`update_hotfix: Merged PR numbers: ${mergedPrNumbersWorking}.`);
 
   const pull_numbers_in_release = Array.from(new Set(mergedPrNumbersWorking)).sort().join(",");
   const mergedPrNumbers = Array.from(new Set(pull_numbers_in_release.split(",").map(Number)));
