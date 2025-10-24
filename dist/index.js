@@ -631,7 +631,7 @@ async function tryMerge(headBranch, baseBranch) {
         console.log(`${headBranch} branch is not up to date with ${baseBranch} branch. Attempting to merge.`);
         try {
             // set a new var for octokit, so we can use the mergeUserToken if it's set to bypass protected branches.
-            let updatedOctokit = (0, shared_1.getMergeUserOctokit)();
+            const updatedOctokit = (0, shared_1.getMergeUserOctokit)();
             await updatedOctokit.rest.repos.merge({
                 ...shared_1.Config.repo,
                 base: baseBranch,

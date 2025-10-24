@@ -1,7 +1,7 @@
 import * as github from "@actions/github";
 import { RestEndpointMethodTypes } from "@octokit/plugin-rest-endpoint-methods";
 import assert from "assert";
-import { Config, octokit } from "./shared";
+import { Config, getMergeUserOctokit, octokit } from "./shared";
 import { Result } from "./types";
 import { isReleaseCandidate, tryMerge } from "./utils";
 
@@ -66,7 +66,8 @@ async function executeOnRelease(): Promise<Result> {
 
   assert(pullRequestBody, `pull request body is not defined`);
 
-  const { data: release } = await octokit.rest.repos.createRelease({
+  const updatedOctokit = getMergeUserOctokit();
+  const { data: release } = await updatedOctokit.rest.repos.createRelease({
     ...Config.repo,
     tag_name: version,
     target_commitish: Config.prodBranch,
