@@ -574,6 +574,9 @@ async function updateHotfixPR() {
         pull_number: pullRequestNumber,
         body: releaseNotesBody,
     });
+    console.log(`update_hotfix: PR Updated, adding "fix" label to PR.`);
+    await (0, shared_1.addLabels)(pullRequestNumber, ["fix"]);
+    console.log(`update_hotfix: PR Update complete.`);
     return {
         type: "hotfix",
         pull_number: pullRequestNumber,

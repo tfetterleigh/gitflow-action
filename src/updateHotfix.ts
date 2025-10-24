@@ -1,4 +1,4 @@
-import { Config, octokit } from "./shared";
+import { addLabels, Config, octokit } from "./shared";
 import { Result } from "./types";
 import * as github from "@actions/github";
 
@@ -70,6 +70,10 @@ export async function updateHotfixPR(): Promise<Result> {
     body: releaseNotesBody,
   });
 
+  console.log(`update_hotfix: PR Updated, adding "fix" label to PR.`);
+  await addLabels(pullRequestNumber, ["fix"]);
+
+  console.log(`update_hotfix: PR Update complete.`);
   return {
     type: "hotfix",
     pull_number: pullRequestNumber,
