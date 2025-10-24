@@ -529,8 +529,29 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.updateHotfixPR = updateHotfixPR;
 const shared_1 = __nccwpck_require__(3839);
 const github = __importStar(__nccwpck_require__(3228));
+async function formatCommitsAsReleaseNotes(hotfixBranch, previousTagName, hotfixVersion) {
+    // Get the base ref (either the previous tag or main branch)
+    const base = previousTagName || shared_1.Config.prodBranch;
+    console.log(`update_hotfix: Fetching commits between ${base} and ${hotfixBranch}`);
+    // Get the comparison between base and hotfix branch
+    const { data: comparison } = await shared_1.octokit.rest.repos.compareCommits({
+        ...shared_1.Config.repo,
+        base: base,
+        head: hotfixBranch,
+    });
+    let body = "## What's Changed\n\n";
+    // Format each commit
+    for (const commit of comparison.commits) {
+        const message = commit.commit.message.split("\n")[0]; // First line only
+        const sha = commit.sha.substring(0, 7); // Short SHA
+        const author = commit.author?.login || commit.commit.author?.name || "unknown";
+        body += `* ${message} (${sha}) by @${author}\n`;
+    }
+    // Add full changelog link
+    body += `\n**Full Changelog**: https://github.com/${shared_1.Config.repo.owner}/${shared_1.Config.repo.repo}/compare/${base}...${hotfixVersion}`;
+    return body;
+}
 async function updateHotfixPR() {
-    // const isDryRun = Config.isDryRun;
     const pullRequest = github.context.payload.pull_request;
     if (!pullRequest) {
         console.log(`update_hotfix: Pull request not found in payload.`);
@@ -544,23 +565,32 @@ async function updateHotfixPR() {
     const { data: latestRelease } = await shared_1.octokit.rest.repos.getLatestRelease(shared_1.Config.repo).catch(() => ({ data: null }));
     const latest_release_tag_name = latestRelease?.tag_name;
     console.log(`Generating release notes for ${hotfixBranch}. Latest release tag name: ${latest_release_tag_name}. Pull request number: ${pullRequestNumber}.`);
-    const { data: releaseNotes } = await shared_1.octokit.rest.repos.generateReleaseNotes({
-        ...shared_1.Config.repo,
-        tag_name: hotfixVersion,
-        target_commitish: hotfixBranch,
-        previous_tag_name: latest_release_tag_name,
-    });
-    if (!releaseNotes.body) {
-        console.log(`update_hotfix: No release notes found. Exiting.`);
-        return {
-            type: "none",
-        };
+    let releaseNotesBody;
+    try {
+        const { data: releaseNotes } = await shared_1.octokit.rest.repos.generateReleaseNotes({
+            ...shared_1.Config.repo,
+            tag_name: hotfixVersion,
+            target_commitish: hotfixBranch,
+            previous_tag_name: latest_release_tag_name,
+        });
+        if (releaseNotes.body && releaseNotes.body.trim()) {
+            console.log(`update_hotfix: Using generated release notes from GitHub API.`);
+            releaseNotesBody = releaseNotes.body;
+        }
+        else {
+            console.log(`update_hotfix: Empty release notes from API, formatting commits manually.`);
+            releaseNotesBody = await formatCommitsAsReleaseNotes(hotfixBranch, latest_release_tag_name, hotfixVersion);
+        }
     }
-    console.log(`update_hotfix: Updating PR with Release notes: ${releaseNotes.body}.`);
+    catch (error) {
+        console.log(`update_hotfix: Error generating release notes, formatting commits manually. Error: ${error}`);
+        releaseNotesBody = await formatCommitsAsReleaseNotes(hotfixBranch, latest_release_tag_name, hotfixVersion);
+    }
+    console.log(`update_hotfix: Updating PR with release notes.`);
     await shared_1.octokit.rest.pulls.update({
         ...shared_1.Config.repo,
         pull_number: pullRequestNumber,
-        body: releaseNotes.body,
+        body: releaseNotesBody,
     });
     return {
         type: "hotfix",
