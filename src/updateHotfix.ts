@@ -57,27 +57,8 @@ export async function updateHotfixPR(): Promise<Result> {
     `Generating release notes for ${hotfixBranch}. Latest release tag name: ${latest_release_tag_name}. Pull request number: ${pullRequestNumber}.`
   );
 
-  let releaseNotesBody: string;
-
-  try {
-    const { data: releaseNotes } = await octokit.rest.repos.generateReleaseNotes({
-      ...Config.repo,
-      tag_name: hotfixVersion,
-      target_commitish: hotfixBranch,
-      previous_tag_name: latest_release_tag_name,
-    });
-
-    if (releaseNotes.body && releaseNotes.body.trim()) {
-      console.log(`update_hotfix: Using generated release notes from GitHub API.`);
-      releaseNotesBody = releaseNotes.body;
-    } else {
-      console.log(`update_hotfix: Empty release notes from API, formatting commits manually.`);
-      releaseNotesBody = await formatCommitsAsReleaseNotes(hotfixBranch, latest_release_tag_name, hotfixVersion);
-    }
-  } catch (error) {
-    console.log(`update_hotfix: Error generating release notes, formatting commits manually. Error: ${error}`);
-    releaseNotesBody = await formatCommitsAsReleaseNotes(hotfixBranch, latest_release_tag_name, hotfixVersion);
-  }
+  console.log(`update_hotfix: Formatting Commits as Release Notes.`);
+  const releaseNotesBody = await formatCommitsAsReleaseNotes(hotfixBranch, latest_release_tag_name, hotfixVersion);
 
   console.log(`update_hotfix: Updating PR with release notes.`);
 
