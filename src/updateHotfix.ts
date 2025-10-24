@@ -23,7 +23,7 @@ export async function updateHotfixPR(): Promise<Result> {
   const latest_release_tag_name = latestRelease?.tag_name;
 
   console.log(
-    `update_hotfix: Latest release tag name: ${latest_release_tag_name}. Hotfix branch: ${hotfixBranch}. Hotfix version: ${hotfixVersion}.`
+    `update_hotfix: Latest release tag name: ${latest_release_tag_name}. Hotfix branch: ${hotfixBranch}. Hotfix version: ${hotfixVersion}. Pull request number: ${pullRequestNumber}.`
   );
 
   const { data: releaseNotes } = await octokit.rest.repos.generateReleaseNotes({

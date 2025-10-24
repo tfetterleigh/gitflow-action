@@ -544,7 +544,7 @@ async function updateHotfixPR() {
     const pullRequestNumber = pullRequest.number;
     const { data: latestRelease } = await shared_1.octokit.rest.repos.getLatestRelease(shared_1.Config.repo).catch(() => ({ data: null }));
     const latest_release_tag_name = latestRelease?.tag_name;
-    console.log(`update_hotfix: Latest release tag name: ${latest_release_tag_name}. Hotfix branch: ${hotfixBranch}. Hotfix version: ${hotfixVersion}.`);
+    console.log(`update_hotfix: Latest release tag name: ${latest_release_tag_name}. Hotfix branch: ${hotfixBranch}. Hotfix version: ${hotfixVersion}. Pull request number: ${pullRequestNumber}.`);
     const { data: releaseNotes } = await shared_1.octokit.rest.repos.generateReleaseNotes({
         ...shared_1.Config.repo,
         tag_name: hotfixVersion,
