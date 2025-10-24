@@ -4,38 +4,26 @@ import * as github from "@actions/github";
 
 export async function updateHotfixPR(): Promise<Result> {
   // const isDryRun = Config.isDryRun;
-  const hotfixBranch = github.context.ref;
-  const hotfixVersion = github.context.ref.substring(Config.hotfixBranchPrefix.length);
+  const pullRequest = github.context.payload.pull_request;
+
+  if (!pullRequest) {
+    console.log(`update_hotfix: Pull request not found in payload.`);
+    return {
+      type: "none",
+    };
+  }
+
+  const hotfixBranch = pullRequest.head.ref;
+  const hotfixVersion = hotfixBranch.substring(Config.hotfixBranchPrefix.length);
+  const pullRequestNumber = pullRequest.number;
   const { data: latestRelease } = await octokit.rest.repos.getLatestRelease(Config.repo).catch(() => ({ data: null }));
-
-  const { data: pullRequests } = await octokit.rest.pulls.list({
-    ...Config.repo,
-    state: "open",
-    base: hotfixBranch,
-  });
-
-  if (pullRequests.length === 0) {
-    console.log(`update_hotfix: Pull request for ${hotfixBranch} not found.`);
-    return {
-      type: "none",
-    };
-  }
-
-  if (pullRequests.length > 1) {
-    console.log(`update_hotfix: Multiple pull requests for branch ${hotfixVersion} found.`);
-    return {
-      type: "none",
-    };
-  }
-
-  const pullRequestNumber = pullRequests[0].number;
 
   const latest_release_tag_name = latestRelease?.tag_name;
 
   const { data: releaseNotes } = await octokit.rest.repos.generateReleaseNotes({
     ...Config.repo,
     tag_name: hotfixVersion,
-    target_commitish: Config.developBranch,
+    target_commitish: hotfixBranch,
     previous_tag_name: latest_release_tag_name,
   });
 

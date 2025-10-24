@@ -104,14 +104,19 @@ async function run() {
     console.log("gitflow-action: running with config", shared_1.Config);
     const isPullRequest = github.context.eventName === "pull_request" || github.context.eventName === "pull_request_target";
     const prIsClosed = isPullRequest && github.context.payload.action === "closed";
-    const isHotfixAndOpen = isPullRequest && github.context.ref.startsWith("hotfix/") && github.context.payload.action === "open";
+    const pullRequest = github.context.payload.pull_request;
+    const hotfixUpdateActions = ["opened", "reopened", "ready_for_review", "synchronize", "edited"];
+    const isHotfixAndOpen = isPullRequest &&
+        pullRequest?.head?.ref?.startsWith(shared_1.Config.hotfixBranchPrefix) &&
+        pullRequest?.base?.ref === shared_1.Config.prodBranch &&
+        hotfixUpdateActions.includes(github.context.payload.action || "");
     let res;
     if (prIsClosed) {
         console.log("gitflow-action: is PR event and PR is closed. Running executeOnRelease");
         res = await (0, post_release_1.executeOnRelease)();
     }
     else if (isHotfixAndOpen) {
-        console.log("gitflow-action: is PR event for hotfix and PR is open. Running updateHotfixPR");
+        console.log("gitflow-action: is PR event for hotfix targeting main. Running updateHotfixPR");
         res = await (0, updateHotfix_1.updateHotfixPR)();
     }
     else if (github.context.eventName === "workflow_dispatch" && !shared_1.Config.isHotfix) {
@@ -526,32 +531,22 @@ const shared_1 = __nccwpck_require__(3839);
 const github = __importStar(__nccwpck_require__(3228));
 async function updateHotfixPR() {
     // const isDryRun = Config.isDryRun;
-    const hotfixBranch = github.context.ref;
-    const hotfixVersion = github.context.ref.substring(shared_1.Config.hotfixBranchPrefix.length);
+    const pullRequest = github.context.payload.pull_request;
+    if (!pullRequest) {
+        console.log(`update_hotfix: Pull request not found in payload.`);
+        return {
+            type: "none",
+        };
+    }
+    const hotfixBranch = pullRequest.head.ref;
+    const hotfixVersion = hotfixBranch.substring(shared_1.Config.hotfixBranchPrefix.length);
+    const pullRequestNumber = pullRequest.number;
     const { data: latestRelease } = await shared_1.octokit.rest.repos.getLatestRelease(shared_1.Config.repo).catch(() => ({ data: null }));
-    const { data: pullRequests } = await shared_1.octokit.rest.pulls.list({
-        ...shared_1.Config.repo,
-        state: "open",
-        base: hotfixBranch,
-    });
-    if (pullRequests.length === 0) {
-        console.log(`update_hotfix: Pull request for ${hotfixBranch} not found.`);
-        return {
-            type: "none",
-        };
-    }
-    if (pullRequests.length > 1) {
-        console.log(`update_hotfix: Multiple pull requests for branch ${hotfixVersion} found.`);
-        return {
-            type: "none",
-        };
-    }
-    const pullRequestNumber = pullRequests[0].number;
     const latest_release_tag_name = latestRelease?.tag_name;
     const { data: releaseNotes } = await shared_1.octokit.rest.repos.generateReleaseNotes({
         ...shared_1.Config.repo,
         tag_name: hotfixVersion,
-        target_commitish: shared_1.Config.developBranch,
+        target_commitish: hotfixBranch,
         previous_tag_name: latest_release_tag_name,
     });
     const mergedPrNumbersWorking = (releaseNotes.body.match(/pull\/\d+/g) || []).map((prNumber) => Number(prNumber.replace("pull/", "")));
