@@ -144,3 +144,6 @@ lib
 
 # ignore secrets and env
 .secrets
+
+# ignore CLAUDE.md
+CLAUDE.md
