@@ -21,6 +21,8 @@ async function formatCommitsAsReleaseNotes(
 
   let body = "## What's Changed\n\n";
 
+  body += "🐛 Bug Fixes\n\n";
+
   // Format each commit
   for (const commit of comparison.commits) {
     const message = commit.commit.message.split("\n")[0]; // First line only
