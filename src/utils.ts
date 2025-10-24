@@ -1,7 +1,6 @@
 import { RestEndpointMethodTypes } from "@octokit/plugin-rest-endpoint-methods";
 import { PR_EXPLAIN_MESSAGE } from "./constants";
-import { Config, octokit } from "./shared";
-import * as github from "@actions/github";
+import { Config, getMergeUserOctokit, octokit } from "./shared";
 
 export async function tryMerge(headBranch: string, baseBranch: string) {
   console.log(`Trying to merge ${headBranch} branch into ${baseBranch} branch.`);
@@ -24,13 +23,7 @@ export async function tryMerge(headBranch: string, baseBranch: string) {
     console.log(`${headBranch} branch is not up to date with ${baseBranch} branch. Attempting to merge.`);
     try {
       // set a new var for octokit, so we can use the mergeUserToken if it's set to bypass protected branches.
-      let updatedOctokit = octokit;
-
-      // check if user passes mergeUserToken secret
-      if (Config.mergeUserToken !== "") {
-        // update octokit to use this token
-        updatedOctokit = github.getOctokit(Config.mergeUserToken);
-      }
+      const updatedOctokit = getMergeUserOctokit();
 
       await updatedOctokit.rest.repos.merge({
         ...Config.repo,
