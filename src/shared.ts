@@ -85,3 +85,13 @@ export function getNextVersion(currentVersion: string, versionIncrement: Release
 
   return increasedVersion;
 }
+
+export function getMergeUserOctokit() {
+  // check if user passes mergeUserToken secret
+  if (Config.mergeUserToken !== "") {
+    // update octokit to use this token
+    return github.getOctokit(Config.mergeUserToken);
+  }
+
+  return octokit;
+}
