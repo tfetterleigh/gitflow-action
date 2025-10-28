@@ -23,6 +23,35 @@ See [Gitflow Workflow](https://www.atlassian.com/git/tutorials/comparing-workflo
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.createHotfix = createHotfix;
 const shared_1 = __nccwpck_require__(3839);
+async function branchExistsOnRemote(branchName) {
+    try {
+        await shared_1.octokit.rest.repos.getBranch({
+            ...shared_1.Config.repo,
+            branch: branchName,
+        });
+        return true;
+    }
+    catch (error) {
+        if (typeof error === "object" && error !== null && "status" in error && error.status === 404) {
+            return false;
+        }
+        // Re-throw if it's not a 404 error
+        throw error;
+    }
+}
+async function findAvailableHotfixVersion(baseVersion) {
+    let version = (0, shared_1.getNextVersion)(baseVersion, "patch");
+    let hotfixBranch = `${shared_1.Config.hotfixBranchPrefix}${version}`;
+    console.log(`create_hotfix: Checking if ${hotfixBranch} exists on remote...`);
+    while (await branchExistsOnRemote(hotfixBranch)) {
+        console.log(`create_hotfix: Branch ${hotfixBranch} already exists, incrementing patch version...`);
+        version = (0, shared_1.getNextVersion)(version, "patch");
+        hotfixBranch = `${shared_1.Config.hotfixBranchPrefix}${version}`;
+        console.log(`create_hotfix: Checking if ${hotfixBranch} exists on remote...`);
+    }
+    console.log(`create_hotfix: Found available version: ${version}`);
+    return version;
+}
 async function createHotfix() {
     const isDryRun = shared_1.Config.isDryRun;
     const prodBranchSha = (await shared_1.octokit.rest.repos.getBranch({
@@ -31,11 +60,11 @@ async function createHotfix() {
     })).data.commit.sha;
     const { data: latestRelease } = await shared_1.octokit.rest.repos.getLatestRelease(shared_1.Config.repo).catch(() => ({ data: null }));
     const latest_release_tag_name = latestRelease?.tag_name;
-    // version will always be patch for hotfix
-    const version = (0, shared_1.getNextVersion)(latest_release_tag_name || "0.0.0", "patch");
+    // Find an available hotfix version by checking if branches exist on remote
+    const version = await findAvailableHotfixVersion(latest_release_tag_name || "0.0.0");
     const hotfixBranch = `${shared_1.Config.hotfixBranchPrefix}${version}`;
     if (!isDryRun) {
-        console.log(`create_hotfix: Creating hotfix branch`);
+        console.log(`create_hotfix: Creating hotfix branch ${hotfixBranch}`);
         // create hotfix branch from latest sha of prod branch
         await (0, shared_1.createBranch)(hotfixBranch, prodBranchSha);
     }
