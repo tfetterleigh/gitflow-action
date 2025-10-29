@@ -43,15 +43,14 @@ async function formatCommitsAsReleaseNotes(
     const author = commit.author?.login || commit.commit.author?.name || "unknown";
 
     // Add commit title as a heading
-    body += `### ${title} (${sha})\n\n`;
-    body += `**Author:** @${author}\n\n`;
+    body += `### ${title} (${sha}) by @${author}\n\n`;
 
     // Add commit description if it exists (skip empty lines after title)
     const descriptionLines = lines.slice(1).filter((line) => line.trim() !== "");
     if (descriptionLines.length > 0) {
       body += descriptionLines.join("\n") + "\n\n";
     } else {
-      body += "_No description provided_\n\n";
+      body += "\n\n";
     }
   }
 
