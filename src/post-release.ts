@@ -69,9 +69,20 @@ async function executeOnRelease(): Promise<Result> {
 
   console.log(`on-release: ${releaseCandidateType}(${version}): Generating release`);
 
-  const pullRequestBody = pullRequest.body;
+  let pullRequestBody = pullRequest.body;
 
   assert(pullRequestBody, `pull request body is not defined`);
+
+  // For hotfixes, update the Full Changelog link to use the actual version instead of branch name
+  if (releaseCandidateType === "hotfix") {
+    console.log(`on-release: hotfix: Updating PR body changelog link to use version ${version}`);
+    // Replace the hotfix branch name in the Full Changelog link with the actual version
+    const changelogRegex = new RegExp(
+      `(\\*\\*Full Changelog\\*\\*: https://github\\.com/${Config.repo.owner}/${Config.repo.repo}/compare/[^.]+\\.\\.\\.)${currentBranch}`,
+      "g"
+    );
+    pullRequestBody = pullRequestBody.replace(changelogRegex, `$1${version}`);
+  }
 
   const updatedOctokit = getMergeUserOctokit();
   const { data: release } = await updatedOctokit.rest.repos.createRelease({
