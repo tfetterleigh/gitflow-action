@@ -45,10 +45,10 @@ async function formatCommitsAsReleaseNotes(
     // Add commit title as a heading
     body += `### ${title} (${sha}) by @${author}\n\n`;
 
-    // Add commit description if it exists (skip empty lines after title)
-    const descriptionLines = lines.slice(1).filter((line) => line.trim() !== "");
-    if (descriptionLines.length > 0) {
-      body += descriptionLines.join("\n") + "\n\n";
+    // Add commit description preserving original newlines for proper footer separation
+    const description = lines.slice(1).join("\n").trim();
+    if (description) {
+      body += description + "\n\n";
     } else {
       body += "\n\n";
     }
