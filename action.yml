@@ -35,10 +35,6 @@ inputs:
     description: Specify the release summary to be put in the last section of the release
     required: false
     default: ""
-  is_hotfix:
-    description: Is this a hotfix?
-    required: false
-    default: "false"
   merge_user_token:
     description: The token to use for merging on write protected branches
     required: false

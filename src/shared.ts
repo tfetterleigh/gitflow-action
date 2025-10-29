@@ -23,7 +23,6 @@ export const Config = {
   releaseBranchPrefix: "release/",
   hotfixBranchPrefix: "hotfix/",
   slackOptionsStr: core.getInput("slack") || process.env.SLACK_OPTIONS,
-  isHotfix: (core.getInput("is_hotfix") || process.env.IS_HOTFIX) == "true",
   mergeUserToken: core.getInput("merge_user_token") || "",
 };
 

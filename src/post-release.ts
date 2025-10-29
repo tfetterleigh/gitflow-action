@@ -1,7 +1,7 @@
 import * as github from "@actions/github";
 import { RestEndpointMethodTypes } from "@octokit/plugin-rest-endpoint-methods";
 import assert from "assert";
-import { Config, getMergeUserOctokit, octokit } from "./shared";
+import { Config, getMergeUserOctokit, getNextVersion, octokit } from "./shared";
 import { Result } from "./types";
 import { isReleaseCandidate, tryMerge } from "./utils";
 
@@ -50,7 +50,14 @@ async function executeOnRelease(): Promise<Result> {
   if (releaseCandidateType === "release") {
     version = currentBranch.substring(Config.releaseBranchPrefix.length);
   } else if (releaseCandidateType === "hotfix") {
-    version = currentBranch.substring(Config.hotfixBranchPrefix.length);
+    // Get the latest release and increment patch version
+    console.log(`on-release: hotfix: Getting latest release from remote`);
+    const { data: latestRelease } = await octokit.rest.repos
+      .getLatestRelease(Config.repo)
+      .catch(() => ({ data: null }));
+    const latest_release_tag_name = latestRelease?.tag_name || "0.0.0";
+    version = getNextVersion(latest_release_tag_name, "patch");
+    console.log(`on-release: hotfix: Latest release: ${latest_release_tag_name}, New version: ${version}`);
   }
 
   if (version === "") {

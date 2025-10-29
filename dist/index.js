@@ -15,73 +15,6 @@ See [Gitflow Workflow](https://www.atlassian.com/git/tutorials/comparing-workflo
 
 /***/ }),
 
-/***/ 3040:
-/***/ ((__unused_webpack_module, exports, __nccwpck_require__) => {
-
-"use strict";
-
-Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.createHotfix = createHotfix;
-const shared_1 = __nccwpck_require__(3839);
-async function branchExistsOnRemote(branchName) {
-    try {
-        await shared_1.octokit.rest.repos.getBranch({
-            ...shared_1.Config.repo,
-            branch: branchName,
-        });
-        return true;
-    }
-    catch (error) {
-        if (typeof error === "object" && error !== null && "status" in error && error.status === 404) {
-            return false;
-        }
-        // Re-throw if it's not a 404 error
-        throw error;
-    }
-}
-async function findAvailableHotfixVersion(baseVersion) {
-    let version = (0, shared_1.getNextVersion)(baseVersion, "patch");
-    let hotfixBranch = `${shared_1.Config.hotfixBranchPrefix}${version}`;
-    console.log(`create_hotfix: Checking if ${hotfixBranch} exists on remote...`);
-    while (await branchExistsOnRemote(hotfixBranch)) {
-        console.log(`create_hotfix: Branch ${hotfixBranch} already exists, incrementing patch version...`);
-        version = (0, shared_1.getNextVersion)(version, "patch");
-        hotfixBranch = `${shared_1.Config.hotfixBranchPrefix}${version}`;
-        console.log(`create_hotfix: Checking if ${hotfixBranch} exists on remote...`);
-    }
-    console.log(`create_hotfix: Found available version: ${version}`);
-    return version;
-}
-async function createHotfix() {
-    const isDryRun = shared_1.Config.isDryRun;
-    const prodBranchSha = (await shared_1.octokit.rest.repos.getBranch({
-        ...shared_1.Config.repo,
-        branch: shared_1.Config.prodBranch,
-    })).data.commit.sha;
-    const { data: latestRelease } = await shared_1.octokit.rest.repos.getLatestRelease(shared_1.Config.repo).catch(() => ({ data: null }));
-    const latest_release_tag_name = latestRelease?.tag_name;
-    // Find an available hotfix version by checking if branches exist on remote
-    const version = await findAvailableHotfixVersion(latest_release_tag_name || "0.0.0");
-    const hotfixBranch = `${shared_1.Config.hotfixBranchPrefix}${version}`;
-    if (!isDryRun) {
-        console.log(`create_hotfix: Creating hotfix branch ${hotfixBranch}`);
-        // create hotfix branch from latest sha of prod branch
-        await (0, shared_1.createBranch)(hotfixBranch, prodBranchSha);
-    }
-    else {
-        console.log(`create_hotfix: Dry run: would have created hotfix branch ${hotfixBranch}`);
-    }
-    return {
-        type: "hotfix",
-        version,
-        release_branch: hotfixBranch,
-        latest_release_tag_name,
-    };
-}
-
-
-/***/ }),
-
 /***/ 1188:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
 
@@ -127,7 +60,6 @@ const core = __importStar(__nccwpck_require__(7484));
 const shared_1 = __nccwpck_require__(3839);
 const post_release_1 = __nccwpck_require__(8811);
 const release_1 = __nccwpck_require__(9437);
-const hotfix_1 = __nccwpck_require__(3040);
 const updateHotfix_1 = __nccwpck_require__(8881);
 async function run() {
     console.log("gitflow-action: running with config", shared_1.Config);
@@ -148,13 +80,9 @@ async function run() {
         console.log("gitflow-action: is PR event for hotfix targeting main. Running updateHotfixPR");
         res = await (0, updateHotfix_1.updateHotfixPR)();
     }
-    else if (github.context.eventName === "workflow_dispatch" && !shared_1.Config.isHotfix) {
+    else if (github.context.eventName === "workflow_dispatch") {
         console.log("gitflow-action: is workflow_dispatch and not a hotfix.  Running createReleasePR");
         res = await (0, release_1.createReleasePR)();
-    }
-    else if (github.context.eventName === "workflow_dispatch" && shared_1.Config.isHotfix) {
-        console.log("gitflow-action: is workflow_dispatch and is a hotfix.  Running createHotfix");
-        res = await (0, hotfix_1.createHotfix)();
     }
     else {
         console.log("gitflow-action: no conditions matched");
@@ -266,7 +194,14 @@ async function executeOnRelease() {
         version = currentBranch.substring(shared_1.Config.releaseBranchPrefix.length);
     }
     else if (releaseCandidateType === "hotfix") {
-        version = currentBranch.substring(shared_1.Config.hotfixBranchPrefix.length);
+        // Get the latest release and increment patch version
+        console.log(`on-release: hotfix: Getting latest release from remote`);
+        const { data: latestRelease } = await shared_1.octokit.rest.repos
+            .getLatestRelease(shared_1.Config.repo)
+            .catch(() => ({ data: null }));
+        const latest_release_tag_name = latestRelease?.tag_name || "0.0.0";
+        version = (0, shared_1.getNextVersion)(latest_release_tag_name, "patch");
+        console.log(`on-release: hotfix: Latest release: ${latest_release_tag_name}, New version: ${version}`);
     }
     if (version === "") {
         console.log(`on-release: ${releaseCandidateType}(${version}): No version found`);
@@ -468,7 +403,6 @@ exports.Config = {
     releaseBranchPrefix: "release/",
     hotfixBranchPrefix: "hotfix/",
     slackOptionsStr: core.getInput("slack") || process.env.SLACK_OPTIONS,
-    isHotfix: (core.getInput("is_hotfix") || process.env.IS_HOTFIX) == "true",
     mergeUserToken: core.getInput("merge_user_token") || "",
 };
 async function createBranch(branch, sha) {

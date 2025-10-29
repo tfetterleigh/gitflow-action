@@ -4,7 +4,6 @@ import { Config } from "./shared";
 import { Result } from "./types";
 import { executeOnRelease } from "./post-release";
 import { createReleasePR } from "./release";
-import { createHotfix } from "./hotfix";
 import { updateHotfixPR } from "./updateHotfix";
 
 export async function run() {
@@ -29,12 +28,9 @@ export async function run() {
   } else if (isHotfixAndOpen) {
     console.log("gitflow-action: is PR event for hotfix targeting main. Running updateHotfixPR");
     res = await updateHotfixPR();
-  } else if (github.context.eventName === "workflow_dispatch" && !Config.isHotfix) {
+  } else if (github.context.eventName === "workflow_dispatch") {
     console.log("gitflow-action: is workflow_dispatch and not a hotfix.  Running createReleasePR");
     res = await createReleasePR();
-  } else if (github.context.eventName === "workflow_dispatch" && Config.isHotfix) {
-    console.log("gitflow-action: is workflow_dispatch and is a hotfix.  Running createHotfix");
-    res = await createHotfix();
   } else {
     console.log("gitflow-action: no conditions matched");
   }
