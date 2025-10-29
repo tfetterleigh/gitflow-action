@@ -23,7 +23,7 @@ async function formatCommitsAsReleaseNotes(
 
   body += "🐛 Bug Fixes\n\n";
 
-  // Format each commit
+  // Format each commit - first line only for overview
   for (const commit of comparison.commits) {
     const message = commit.commit.message.split("\n")[0]; // First line only
     const sha = commit.sha.substring(0, 7); // Short SHA
@@ -32,8 +32,31 @@ async function formatCommitsAsReleaseNotes(
     body += `* ${message} (${sha}) by @${author}\n`;
   }
 
+  // Add Hotfix Summary section with full commit details
+  body += "\n## Hotfix Summary\n\n";
+
+  for (const commit of comparison.commits) {
+    const fullMessage = commit.commit.message;
+    const lines = fullMessage.split("\n");
+    const title = lines[0];
+    const sha = commit.sha.substring(0, 7);
+    const author = commit.author?.login || commit.commit.author?.name || "unknown";
+
+    // Add commit title as a heading
+    body += `### ${title} (${sha})\n\n`;
+    body += `**Author:** @${author}\n\n`;
+
+    // Add commit description if it exists (skip empty lines after title)
+    const descriptionLines = lines.slice(1).filter((line) => line.trim() !== "");
+    if (descriptionLines.length > 0) {
+      body += descriptionLines.join("\n") + "\n\n";
+    } else {
+      body += "_No description provided_\n\n";
+    }
+  }
+
   // Add full changelog link
-  body += `\n**Full Changelog**: https://github.com/${Config.repo.owner}/${Config.repo.repo}/compare/${base}...${hotfixVersion}`;
+  body += `**Full Changelog**: https://github.com/${Config.repo.owner}/${Config.repo.repo}/compare/${base}...${hotfixVersion}`;
 
   return body;
 }
