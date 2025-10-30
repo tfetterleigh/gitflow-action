@@ -538,7 +538,7 @@ async function formatCommitsAsReleaseNotes(hotfixBranch, previousTagName, hotfix
         const sha = commit.sha.substring(0, 7);
         const author = commit.author?.login || commit.commit.author?.name || "unknown";
         // Add commit title as a heading
-        body += `### ${title} (${sha}) by @${author}\n\n`;
+        body += `${title} (${sha}) by @${author}\n\n`;
         // Add commit description preserving original newlines for proper footer separation
         const description = lines.slice(1).join("\n").trim();
         if (description) {
