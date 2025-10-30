@@ -47,6 +47,8 @@ async function executeOnRelease(): Promise<Result> {
 
   let version = "";
 
+  let latestReleaseTagName = "";
+
   if (releaseCandidateType === "release") {
     version = currentBranch.substring(Config.releaseBranchPrefix.length);
   } else if (releaseCandidateType === "hotfix") {
@@ -55,9 +57,9 @@ async function executeOnRelease(): Promise<Result> {
     const { data: latestRelease } = await octokit.rest.repos
       .getLatestRelease(Config.repo)
       .catch(() => ({ data: null }));
-    const latest_release_tag_name = latestRelease?.tag_name || "0.0.0";
-    version = getNextVersion(latest_release_tag_name, "patch");
-    console.log(`on-release: hotfix: Latest release: ${latest_release_tag_name}, New version: ${version}`);
+    latestReleaseTagName = latestRelease?.tag_name || "0.0.0";
+    version = getNextVersion(latestReleaseTagName, "patch");
+    console.log(`on-release: hotfix: Latest release: ${latestReleaseTagName}, New version: ${version}`);
   }
 
   if (version === "") {
@@ -76,7 +78,15 @@ async function executeOnRelease(): Promise<Result> {
   // For hotfixes, update the Full Changelog link to use the actual version instead of branch name
   if (releaseCandidateType === "hotfix") {
     console.log(`on-release: hotfix: Updating PR body changelog link to use version ${version}`);
-    // Replace the hotfix branch name in the Full Changelog link with the actual version
+
+    // First, update the base version in case it's stale (another release happened since PR was created)
+    const baseVersionRegex = new RegExp(
+      `(\\*\\*Full Changelog\\*\\*: https:\\/\\/github\\.com\\/${Config.repo.owner}\\/${Config.repo.repo}\\/compare\\/)([0-9]+\\.[0-9]+\\.[0-9]+)(\\.\\.\\..*?)$`,
+      "gm"
+    );
+    pullRequestBody = pullRequestBody.replace(baseVersionRegex, `$1${latestReleaseTagName}$3`);
+
+    // Then, replace the hotfix branch name with the actual version
     const changelogRegex = new RegExp(
       `(\\*\\*Full Changelog\\*\\*: https:\\/\\/github\\.com\\/${Config.repo.owner}\\/${Config.repo.repo}\\/compare\\/[0-9]+\\.[0-9]+\\.[0-9]+\\.\\.\\.)${currentBranch.substring(Config.hotfixBranchPrefix.length)}`,
       "g"

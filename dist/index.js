@@ -190,6 +190,7 @@ async function executeOnRelease() {
         };
     const currentBranch = pullRequest.head.ref;
     let version = "";
+    let latestReleaseTagName = "";
     if (releaseCandidateType === "release") {
         version = currentBranch.substring(shared_1.Config.releaseBranchPrefix.length);
     }
@@ -199,9 +200,9 @@ async function executeOnRelease() {
         const { data: latestRelease } = await shared_1.octokit.rest.repos
             .getLatestRelease(shared_1.Config.repo)
             .catch(() => ({ data: null }));
-        const latest_release_tag_name = latestRelease?.tag_name || "0.0.0";
-        version = (0, shared_1.getNextVersion)(latest_release_tag_name, "patch");
-        console.log(`on-release: hotfix: Latest release: ${latest_release_tag_name}, New version: ${version}`);
+        latestReleaseTagName = latestRelease?.tag_name || "0.0.0";
+        version = (0, shared_1.getNextVersion)(latestReleaseTagName, "patch");
+        console.log(`on-release: hotfix: Latest release: ${latestReleaseTagName}, New version: ${version}`);
     }
     if (version === "") {
         console.log(`on-release: ${releaseCandidateType}(${version}): No version found`);
@@ -215,7 +216,10 @@ async function executeOnRelease() {
     // For hotfixes, update the Full Changelog link to use the actual version instead of branch name
     if (releaseCandidateType === "hotfix") {
         console.log(`on-release: hotfix: Updating PR body changelog link to use version ${version}`);
-        // Replace the hotfix branch name in the Full Changelog link with the actual version
+        // First, update the base version in case it's stale (another release happened since PR was created)
+        const baseVersionRegex = new RegExp(`(\\*\\*Full Changelog\\*\\*: https:\\/\\/github\\.com\\/${shared_1.Config.repo.owner}\\/${shared_1.Config.repo.repo}\\/compare\\/)([0-9]+\\.[0-9]+\\.[0-9]+)(\\.\\.\\..*?)$`, "gm");
+        pullRequestBody = pullRequestBody.replace(baseVersionRegex, `$1${latestReleaseTagName}$3`);
+        // Then, replace the hotfix branch name with the actual version
         const changelogRegex = new RegExp(`(\\*\\*Full Changelog\\*\\*: https:\\/\\/github\\.com\\/${shared_1.Config.repo.owner}\\/${shared_1.Config.repo.repo}\\/compare\\/[0-9]+\\.[0-9]+\\.[0-9]+\\.\\.\\.)${currentBranch.substring(shared_1.Config.hotfixBranchPrefix.length)}`, "g");
         pullRequestBody = pullRequestBody.replace(changelogRegex, `$1${version}`);
     }
