@@ -82,6 +82,8 @@ async function executeOnRelease(): Promise<Result> {
       "g"
     );
     pullRequestBody = pullRequestBody.replace(changelogRegex, `$1${version}`);
+
+    console.log(pullRequestBody);
   }
 
   const updatedOctokit = getMergeUserOctokit();

@@ -218,6 +218,7 @@ async function executeOnRelease() {
         // Replace the hotfix branch name in the Full Changelog link with the actual version
         const changelogRegex = new RegExp(`(\\*\\*Full Changelog\\*\\*: https:\\/\\/github\\.com\\/${shared_1.Config.repo.owner}\\/${shared_1.Config.repo.repo}\\/compare\\/[0-9]+\\.[0-9]+\\.[0-9]+\\.\\.\\.)${currentBranch}`, "g");
         pullRequestBody = pullRequestBody.replace(changelogRegex, `$1${version}`);
+        console.log(pullRequestBody);
     }
     const updatedOctokit = (0, shared_1.getMergeUserOctokit)();
     const { data: release } = await updatedOctokit.rest.repos.createRelease({
