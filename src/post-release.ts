@@ -78,12 +78,10 @@ async function executeOnRelease(): Promise<Result> {
     console.log(`on-release: hotfix: Updating PR body changelog link to use version ${version}`);
     // Replace the hotfix branch name in the Full Changelog link with the actual version
     const changelogRegex = new RegExp(
-      `(\\*\\*Full Changelog\\*\\*: https:\\/\\/github\\.com\\/${Config.repo.owner}\\/${Config.repo.repo}\\/compare\\/[0-9]+\\.[0-9]+\\.[0-9]+\\.\\.\\.)${currentBranch}`,
+      `(\\*\\*Full Changelog\\*\\*: https:\\/\\/github\\.com\\/${Config.repo.owner}\\/${Config.repo.repo}\\/compare\\/[0-9]+\\.[0-9]+\\.[0-9]+\\.\\.\\.)${currentBranch.substring(Config.hotfixBranchPrefix.length)}`,
       "g"
     );
     pullRequestBody = pullRequestBody.replace(changelogRegex, `$1${version}`);
-
-    console.log(pullRequestBody);
   }
 
   const updatedOctokit = getMergeUserOctokit();
